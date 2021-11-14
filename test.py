@@ -94,4 +94,8 @@ def handler(userRequest):
     elif (userRequest == 'searchLocation')
         searchLocation()
         # ...
-    return bool  # True or False (return of the called function) 
+    return bool  # True or False (return of the called function)
+
+def requestSender(request):
+    answer = sendToBD(request)
+    return answer   # list from database
