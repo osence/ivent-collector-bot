@@ -104,7 +104,7 @@ def edit_info(message: types.Message):
     client.register_next_step_handler(message, edit_info_step2)
 
 def edit_info_step2(message: types.Message):
-    if re.match(r'^[А-ЯЁ][а-яё]+(-[А-Яа-яЁё][а-яё]+)*( [А-ЯЁ][а-яё]+(-[А-Яа-яЁё][а-яё]+)*)+$', message.text) is not None:
+    if isCorrectName(message.text):
         client.send_message(message.chat.id, 'Введите вашу дату рождения в формате дд.мм.гггг:')
         client.register_next_step_handler(message, edit_info_step3, message.text)
     else:
@@ -141,8 +141,14 @@ def create_ivent_step2(message: types.Message, theme):
     client.send_message(message.chat.id, 'Введите название вашего мероприятия:')
     client.register_next_step_handler(message, create_ivent_step3, theme)
 
-def create_ivent_step3(message: types.Message, theme):
+def isCorrectText(text):
     if re.match(r'[А-ЯЁа-яёa-zA-Z]{3,}', message.text) is not None:
+        return True
+    else:
+        return False
+
+def create_ivent_step3(message: types.Message, theme):
+    if isCorrectText(message.text):
         client.send_message(message.chat.id, 'Введите описание вашего мероприятия:')
         client.register_next_step_handler(message, create_ivent_step4, theme, message.text)
     else:
@@ -150,7 +156,7 @@ def create_ivent_step3(message: types.Message, theme):
         client.register_next_step_handler(message, create_ivent_step3, theme)
 
 def create_ivent_step4(message: types.Message, theme, name):
-    if re.search(r'[А-ЯЁа-яёa-zA-Z]{3,}', message.text) is not None:
+    if isCorrectText(message.text):
         client.send_message(message.chat.id, 'Введите дату вашего мероприятия в формате дд.мм.гггг:')
         client.register_next_step_handler(message, create_ivent_step5, theme, name, message.text)
     else:
@@ -172,8 +178,14 @@ def create_ivent_step5(message: types.Message, theme, name, description):
         client.send_message(message.chat.id, 'Некорректный ввод. Попробуйте ещё раз.')
         client.register_next_step_handler(message, create_ivent_step5, theme, name, description)
 
-def create_ivent_step6(message: types.Message, theme, name, description, date):
+def isCorrectTime(text):
     if re.match(r'([0-1][0-9]|2[0-3]):([0-5][0-9])', message.text) is not None:
+        return True
+    else:
+        return False
+
+def create_ivent_step6(message: types.Message, theme, name, description, date):
+    if isCorrectTime(message.text):
         now_date = datetime.datetime.now()
         now_date_str = now_date.strftime("%d.%m.%Y")
         if now_date_str == date and int(message.text.split(':')[0]) * 100 + int(message.text.split(':')[1]) <= now_date.hour * 100 + now_date.minute:
@@ -191,8 +203,14 @@ def create_ivent_step7(message: types.Message, theme, name, description, date, t
     client.send_message(message.chat.id, 'Введите стоимость посещения (целое число):')
     client.register_next_step_handler(message, create_ivent_step8, theme, name, description, date, time, message.text)
 
-def create_ivent_step8(message: types.Message, theme, name, description, date, time, place):
+def isCorrectDigit(text):
     if re.match(r'([1-9][0-9]+)|[0-9]', message.text) is not None:
+        return True
+    else:
+        return False
+
+def create_ivent_step8(message: types.Message, theme, name, description, date, time, place):
+    if isCorrectDigit(message.text):
         client.send_message(message.chat.id, 'Введите количество мест (0 - не ограничено):')
         client.register_next_step_handler(message, create_ivent_step9, theme, name, description, date, time, place, message.text)  
     else:
@@ -200,7 +218,7 @@ def create_ivent_step8(message: types.Message, theme, name, description, date, t
         client.register_next_step_handler(message, create_ivent_step8, theme, name, description, date, time, place)
 
 def create_ivent_step9(message: types.Message, theme, name, description, date, time, place, pay):
-    if re.match(r'([1-9][0-9]+)|[0-9]', message.text) is not None:
+    if isCorrectDigit(message.text):
         client.send_message(message.chat.id, 'Ваше мероприятие успешно добавлено.')
         global i # pylint: disable=global-statement
         # TODO Здесь подключение к бд
