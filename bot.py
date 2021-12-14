@@ -3,6 +3,7 @@ import re
 import telebot
 from telebot import types
 import configure
+from geopandas.tools import geocode
 
 client = telebot.TeleBot(configure.config['token'])
 
@@ -99,6 +100,17 @@ def isCorrectName(text):
 
 
 def registration_step2(message: types.Message):
+    if message.location != None:
+        latitude = message.location.latitude
+        longitude = message.location.longitude
+        client.send_location(message.chat.id, latitude, longitude)
+    else:
+        loc = message.text
+        # finding the location
+        location = geocode(loc, provider="nominatim" , user_agent = 'my_request')
+        point = location.geometry.iloc[0]
+        client.send_location(message.chat.id, point.y, point.x)
+
     if isCorrectName(message.text) and len(message.text) < 255:
         client.send_message(message.chat.id, 'Введите вашу дату рождения в формате дд.мм.гггг:')
         client.register_next_step_handler(message, registration_step3, message.text)
@@ -242,6 +254,9 @@ def create_event_step6(message: types.Message, theme, name, description, date):
 
 # TODO Координаты!?
 def create_event_step7(message: types.Message, theme, name, description, date, time):
+    latitude = message.location.latitude
+    longitude = message.location.longitude
+
     client.send_message(message.chat.id, 'Введите стоимость посещения (целое число):')
     client.register_next_step_handler(message, create_event_step8, theme, name, description, date, time, message.text)
 
