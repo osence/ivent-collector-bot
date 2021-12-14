@@ -150,8 +150,7 @@ def create_ivent_step3(message: types.Message, theme):
         client.register_next_step_handler(message, create_ivent_step3, theme)
 
 def create_ivent_step4(message: types.Message, theme, name):
-    # TODO Неверная регулярка
-    if re.match(r'[А-ЯЁа-яёa-zA-Z]{3,}', message.text) is not None:
+    if re.search(r'[А-ЯЁа-яёa-zA-Z]{3,}', message.text) is not None:
         client.send_message(message.chat.id, 'Введите дату вашего мероприятия в формате дд.мм.гггг:')
         client.register_next_step_handler(message, create_ivent_step5, theme, name, message.text)
     else:
