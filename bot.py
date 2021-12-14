@@ -35,9 +35,8 @@ def add_event_in_database(i, name, description, date, time, place, theme, pay, m
 def id_in_database(userId):
     if userId in user_set.keys():
         # TODO Запрос на проверку регистрации
-        return True
-    return False
-
+        return False
+    return True
 
 def add_user_in_database(name, birthday, userId):
     # TODO Запрос на регистрацию пользователя
@@ -112,7 +111,7 @@ def registration_step3(message: types.Message, name):
     try:
         datetime.datetime.strptime(message.text, "%d.%m.%Y")
         client.send_message(message.chat.id, 'Вы успешно зарегистрированы')
-        add_user_in_database(name, message.text)
+        add_user_in_database(name, message.text, message.chat.id)
         welcome_message(message)
     except ValueError:
         client.send_message(message.chat.id, 'Некорректный ввод. Попробуйте ещё раз.')
