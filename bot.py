@@ -34,9 +34,8 @@ def add_event_in_database(i, name, description, date, time, place, theme, pay, m
 def id_in_database(userId):
     if userId in user_set.keys():
         # TODO Запрос на проверку регистрации
-        return True
-    return False
-
+        return False
+    return True
 
 def add_user_in_database(name, birthday, userId):
     # TODO Запрос на регистрацию пользователя
@@ -106,7 +105,7 @@ def registration_step3(message: types.Message, name):
     try:
         datetime.datetime.strptime(message.text, "%d.%m.%Y")
         client.send_message(message.chat.id, 'Вы успешно зарегистрированы')
-        add_user_in_database(name, message.text)
+        add_user_in_database(name, message.text, message.chat.id)
         welcome_message(message)
     except ValueError:
         client.send_message(message.chat.id, 'Некорректный ввод. Попробуйте ещё раз.')
@@ -289,7 +288,7 @@ def show_events(message: types.Message, page):
     elif page != 0:
         button = types.InlineKeyboardButton(text='<', callback_data='prev_page|' + str(page))
         markup_inline.add(button)
-    elif page != (len(event_list) - 1)//5 and number != 0:
+    elif page != (len(event_list) - 1) // 5 and number != 0:
         button = types.InlineKeyboardButton(text='>', callback_data='next_page|' + str(page))
         markup_inline.add(button)
     else:
@@ -304,21 +303,21 @@ def show_events_next(message: types.Message, page):
     number = 0
     for event in event_list:
         number += 1
-        if number >= 1+page*5 and number <= page*5+5:
+        if 1 + page * 5 <= number <= page * 5 + 5:
             button = types.InlineKeyboardButton(
                 text = event.event_name + '\n' + event.event_date + ' ' + event.event_time,
                 callback_data='show_event|' + str(event.event_id))
             markup_inline.add(button)
-        elif number > page*5+5:
+        elif number > page * 5 + 5:
             break
-    if page != 0 and page != (len(event_list) - 1)//5:
+    if page != 0 and page != (len(event_list) - 1) // 5:
         button1 = types.InlineKeyboardButton(text = '<', callback_data='prev_page|' + str(page))
         button2 = types.InlineKeyboardButton(text = '>', callback_data='next_page|' + str(page))
         markup_inline.add(button1, button2, row_width=2)
     elif page != 0:
         button = types.InlineKeyboardButton(text = '<', callback_data='prev_page|' + str(page))
         markup_inline.add(button)
-    elif page != (len(event_list) - 1)//5 and number != 0:
+    elif page != (len(event_list) - 1) // 5 and number != 0:
         button = types.InlineKeyboardButton(text = '>', callback_data='next_page|' + str(page))
         markup_inline.add(button)
     else:
