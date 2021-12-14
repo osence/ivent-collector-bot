@@ -7,7 +7,7 @@ import configure
 client = telebot.TeleBot(configure.config['token'])
 
 
-class event:
+class Event:
     def __init__(self, id, name, description, date, time, place, subject, pay, number_of_seats, who_create):
         self.event_id = id
         self.event_name = name
@@ -29,7 +29,7 @@ user_set = dict()
 
 def add_event_in_database(i, name, description, date, time, place, theme, pay, msg, userId):
     # TODO Запрос на добавление события
-    event_list.append(event(i, name, description, date, time, place, theme, pay, msg, userId))
+    event_list.append(Event(i, name, description, date, time, place, theme, pay, msg, userId))
 
 def id_in_database(userId):
     if userId in user_set.keys():
@@ -44,7 +44,6 @@ def add_user_in_database(name, birthday, userId):
 
 
 # TODO сделать везде проверку на длину строк (слишком большие)
-# add_event, edit_event, view_event, search_event
 @client.message_handler(commands=['start', 'reset'])
 def welcome_message(message):
     keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
@@ -57,8 +56,8 @@ def welcome_message(message):
         keyboard.add(*["Создать мероприятие", "Посмотреть мероприятия"])
         keyboard.add(*["Мои события", "Мои планы"])
         keyboard.add(*["Поиск по событиям", "Мой аккаунт"])
-        client.send_message(message.chat.id, 'Что ты хочешь сделать?',
-                            reply_markup=keyboard)
+        client.send_message(message.chat.id, 'Выберите действие',
+                        reply_markup=keyboard)
     return
 
 
@@ -95,7 +94,7 @@ def isCorrectName(text):
 
 
 def registration_step2(message: types.Message):
-    if isCorrectName(message.text):
+    if isCorrectName(message.text) and len(message.text) < 255:
         client.send_message(message.chat.id, 'Введите вашу дату рождения в формате дд.мм.гггг:')
         client.register_next_step_handler(message, registration_step3, message.text)
     else:
@@ -129,7 +128,7 @@ def edit_info(message: types.Message):
 
 
 def edit_info_step2(message: types.Message):
-    if isCorrectName(message.text):
+    if isCorrectName(message.text) and len(message.text) < 255:
         client.send_message(message.chat.id, 'Введите вашу дату рождения в формате дд.мм.гггг:')
         client.register_next_step_handler(message, edit_info_step3, message.text)
     else:
@@ -171,14 +170,14 @@ def create_event_step2(message: types.Message, theme):
 
 
 def isCorrectText(text):
-    if re.match(r'[А-ЯЁа-яёa-zA-Z]{3,}', text) is not None:
+    if re.search(r'[А-ЯЁа-яёa-zA-Z]{3,}', text) is not None:
         return True
     else:
         return False
 
 
 def create_event_step3(message: types.Message, theme):
-    if isCorrectText(message.text):
+    if isCorrectText(message.text) and len(message.text) < 255:
         client.send_message(message.chat.id, 'Введите описание вашего мероприятия:')
         client.register_next_step_handler(message, create_event_step4, theme, message.text)
     else:
@@ -188,7 +187,7 @@ def create_event_step3(message: types.Message, theme):
 
 
 def create_event_step4(message: types.Message, theme, name):
-    if isCorrectText(message.text):
+    if isCorrectText(message.text) and len(message.text) < 255:
         client.send_message(message.chat.id, 'Введите дату вашего мероприятия в формате дд.мм.гггг:')
         client.register_next_step_handler(message, create_event_step5, theme, name, message.text)
     else:
@@ -214,7 +213,7 @@ def create_event_step5(message: types.Message, theme, name, description):
 
 
 def isCorrectTime(text):
-    if re.match(r'([0-1][0-9]|2[0-3]):([0-5][0-9])', text) is not None:
+    if re.match(r'([0-1][0-9]|2[0-3]):([0-5][0-9])$', text) is not None:
         return True
     else:
         return False
@@ -243,7 +242,7 @@ def create_event_step7(message: types.Message, theme, name, description, date, t
 
 
 def isCorrectDigit(text):
-    if re.match(r'([1-9][0-9]+)|[0-9]', text) is not None:
+    if re.match(r'([1-9][0-9]+)|[0-9]$', text) is not None:
         return True
     else:
         return False
@@ -290,10 +289,43 @@ def show_events(message: types.Message, page):
     elif page != 0:
         button = types.InlineKeyboardButton(text='<', callback_data='prev_page|' + str(page))
         markup_inline.add(button)
-    elif page != (len(event_list) - 1) // 5:
+    elif page != (len(event_list) - 1)//5 and number != 0:
         button = types.InlineKeyboardButton(text='>', callback_data='next_page|' + str(page))
         markup_inline.add(button)
+    else:
+        client.send_message(message.chat.id, 'Мероприятий нет')
+        return
     client.send_message(message.chat.id, 'Предстоящие мероприятия:', reply_markup=markup_inline)
+
+
+def show_events_next(message: types.Message, page):
+    markup_inline = types.InlineKeyboardMarkup()
+    # TODO тут должно быть получение списка из бд
+    number = 0
+    for event in event_list:
+        number += 1
+        if number >= 1+page*5 and number <= page*5+5:
+            button = types.InlineKeyboardButton(
+                text = event.event_name + '\n' + event.event_date + ' ' + event.event_time,
+                callback_data='show_event|' + str(event.event_id))
+            markup_inline.add(button)
+        elif number > page*5+5:
+            break
+    if page != 0 and page != (len(event_list) - 1)//5:
+        button1 = types.InlineKeyboardButton(text = '<', callback_data='prev_page|' + str(page))
+        button2 = types.InlineKeyboardButton(text = '>', callback_data='next_page|' + str(page))
+        markup_inline.add(button1, button2, row_width=2)
+    elif page != 0:
+        button = types.InlineKeyboardButton(text = '<', callback_data='prev_page|' + str(page))
+        markup_inline.add(button)
+    elif page != (len(event_list) - 1)//5 and number != 0:
+        button = types.InlineKeyboardButton(text = '>', callback_data='next_page|' + str(page))
+        markup_inline.add(button)
+    else:
+        client.send_message(message.chat.id, 'Мероприятий нет')
+        return
+    client.edit_message_reply_markup(chat_id=message.chat.id, message_id=message.id, reply_markup = markup_inline)
+
 
 
 def show_event(message: types.Message, id):
@@ -353,19 +385,11 @@ def answer(call):
         create_event_step2(call.message, theme)
     # TODO изменить, чтоб сообщение заново не отправлялось
     elif func == 'next_page':
-        client.delete_message(
-            call.message.chat.id,
-            call.message.message_id
-        )
         page = int(call.data.split('|')[1])
-        show_events(call.message, page + 1)
+        show_events_next(call.message, page+1)
     elif func == 'prev_page':
-        client.delete_message(
-            call.message.chat.id,
-            call.message.message_id
-        )
         page = int(call.data.split('|')[1])
-        show_events(call.message, page - 1)
+        show_events_next(call.message, page-1)
     elif func == 'show_event':
         event_id = int(call.data.split('|')[1])
         show_event(call.message, event_id)
@@ -375,6 +399,5 @@ def answer(call):
     elif func == 'delete_event':
         event_id = int(call.data.split('|')[1])
         delete_event(call.message, event_id)
-
 
 client.infinity_polling()
