@@ -31,6 +31,7 @@ def add_event_in_database(i, name, description, date, time, place, theme, pay, m
     # TODO Запрос на добавление события
     event_list.append(Event(i, name, description, date, time, place, theme, pay, msg, userId))
 
+
 def id_in_database(userId):
     if userId in user_set.keys():
         # TODO Запрос на проверку регистрации
@@ -41,6 +42,11 @@ def id_in_database(userId):
 def add_user_in_database(name, birthday, userId):
     # TODO Запрос на регистрацию пользователя
     user_set[userId] = [name, birthday]
+
+
+def get_events_from_database():
+    # TODO Запрос на получение всех мероприятий
+    return []
 
 
 # TODO сделать везде проверку на длину строк (слишком большие)
@@ -57,7 +63,7 @@ def welcome_message(message):
         keyboard.add(*["Мои события", "Мои планы"])
         keyboard.add(*["Поиск по событиям", "Мой аккаунт"])
         client.send_message(message.chat.id, 'Выберите действие',
-                        reply_markup=keyboard)
+                            reply_markup=keyboard)
     return
 
 
@@ -272,6 +278,7 @@ def create_event_step9(message: types.Message, theme, name, description, date, t
 def show_events(message: types.Message, page):
     markup_inline = types.InlineKeyboardMarkup()
     # TODO тут должно быть получение списка из бд
+    get_events_from_database()
     number = 0
     for event in event_list:
         number += 1
@@ -289,7 +296,7 @@ def show_events(message: types.Message, page):
     elif page != 0:
         button = types.InlineKeyboardButton(text='<', callback_data='prev_page|' + str(page))
         markup_inline.add(button)
-    elif page != (len(event_list) - 1)//5 and number != 0:
+    elif page != (len(event_list) - 1) // 5 and number != 0:
         button = types.InlineKeyboardButton(text='>', callback_data='next_page|' + str(page))
         markup_inline.add(button)
     else:
@@ -301,31 +308,31 @@ def show_events(message: types.Message, page):
 def show_events_next(message: types.Message, page):
     markup_inline = types.InlineKeyboardMarkup()
     # TODO тут должно быть получение списка из бд
+    get_events_from_database()
     number = 0
     for event in event_list:
         number += 1
-        if number >= 1+page*5 and number <= page*5+5:
+        if 1 + page * 5 <= number <= page * 5 + 5:
             button = types.InlineKeyboardButton(
-                text = event.event_name + '\n' + event.event_date + ' ' + event.event_time,
+                text=event.event_name + '\n' + event.event_date + ' ' + event.event_time,
                 callback_data='show_event|' + str(event.event_id))
             markup_inline.add(button)
-        elif number > page*5+5:
+        elif number > page * 5 + 5:
             break
-    if page != 0 and page != (len(event_list) - 1)//5:
-        button1 = types.InlineKeyboardButton(text = '<', callback_data='prev_page|' + str(page))
-        button2 = types.InlineKeyboardButton(text = '>', callback_data='next_page|' + str(page))
+    if page != 0 and page != (len(event_list) - 1) // 5:
+        button1 = types.InlineKeyboardButton(text='<', callback_data='prev_page|' + str(page))
+        button2 = types.InlineKeyboardButton(text='>', callback_data='next_page|' + str(page))
         markup_inline.add(button1, button2, row_width=2)
     elif page != 0:
-        button = types.InlineKeyboardButton(text = '<', callback_data='prev_page|' + str(page))
+        button = types.InlineKeyboardButton(text='<', callback_data='prev_page|' + str(page))
         markup_inline.add(button)
-    elif page != (len(event_list) - 1)//5 and number != 0:
-        button = types.InlineKeyboardButton(text = '>', callback_data='next_page|' + str(page))
+    elif page != (len(event_list) - 1) // 5 and number != 0:
+        button = types.InlineKeyboardButton(text='>', callback_data='next_page|' + str(page))
         markup_inline.add(button)
     else:
         client.send_message(message.chat.id, 'Мероприятий нет')
         return
-    client.edit_message_reply_markup(chat_id=message.chat.id, message_id=message.id, reply_markup = markup_inline)
-
+    client.edit_message_reply_markup(chat_id=message.chat.id, message_id=message.id, reply_markup=markup_inline)
 
 
 def show_event(message: types.Message, id):
@@ -386,10 +393,10 @@ def answer(call):
     # TODO изменить, чтоб сообщение заново не отправлялось
     elif func == 'next_page':
         page = int(call.data.split('|')[1])
-        show_events_next(call.message, page+1)
+        show_events_next(call.message, page + 1)
     elif func == 'prev_page':
         page = int(call.data.split('|')[1])
-        show_events_next(call.message, page-1)
+        show_events_next(call.message, page - 1)
     elif func == 'show_event':
         event_id = int(call.data.split('|')[1])
         show_event(call.message, event_id)
@@ -399,5 +406,6 @@ def answer(call):
     elif func == 'delete_event':
         event_id = int(call.data.split('|')[1])
         delete_event(call.message, event_id)
+
 
 client.infinity_polling()
