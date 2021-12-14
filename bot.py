@@ -142,7 +142,7 @@ def create_ivent_step2(message: types.Message, theme):
     client.register_next_step_handler(message, create_ivent_step3, theme)
 
 def isCorrectText(text):
-    if re.match(r'[А-ЯЁа-яёa-zA-Z]{3,}', message.text) is not None:
+    if re.match(r'[А-ЯЁа-яёa-zA-Z]{3,}', text) is not None:
         return True
     else:
         return False
@@ -179,7 +179,7 @@ def create_ivent_step5(message: types.Message, theme, name, description):
         client.register_next_step_handler(message, create_ivent_step5, theme, name, description)
 
 def isCorrectTime(text):
-    if re.match(r'([0-1][0-9]|2[0-3]):([0-5][0-9])', message.text) is not None:
+    if re.match(r'([0-1][0-9]|2[0-3]):([0-5][0-9])', text) is not None:
         return True
     else:
         return False
@@ -204,7 +204,7 @@ def create_ivent_step7(message: types.Message, theme, name, description, date, t
     client.register_next_step_handler(message, create_ivent_step8, theme, name, description, date, time, message.text)
 
 def isCorrectDigit(text):
-    if re.match(r'([1-9][0-9]+)|[0-9]', message.text) is not None:
+    if re.match(r'([1-9][0-9]+)|[0-9]', text) is not None:
         return True
     else:
         return False
