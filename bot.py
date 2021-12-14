@@ -24,8 +24,6 @@ ivent_list = []
 i = 0
 user_set = dict()
 
-# TODO сделать везде проверку на длину строк (слишком большие)
-# TODO изменить логику поведения, чтоб можно было прервать
 # add_ivent, edit_ivent, view_ivent, search_ivent
 @client.message_handler(commands=['start', 'reset'])
 def welcome_message(message):
@@ -39,7 +37,7 @@ def welcome_message(message):
         keyboard.add(*["Создать мероприятие", "Посмотреть мероприятия"])
         keyboard.add(*["Мои события", "Мои планы"])
         keyboard.add(*["Поиск по событиям", "Мой аккаунт"])
-        client.send_message(message.chat.id, 'Что ты хочешь сделать?',
+        client.send_message(message.chat.id, 'Выберите действие',
                         reply_markup=keyboard)
     return
 
@@ -74,7 +72,7 @@ def isCorrectName(text):
         return False
 
 def registration_step2(message: types.Message):
-    if isCorrectName(message.text):
+    if isCorrectName(message.text) and len(message.text) < 255:
         client.send_message(message.chat.id, 'Введите вашу дату рождения в формате дд.мм.гггг:')
         client.register_next_step_handler(message, registration_step3, message.text)
     else:
@@ -104,7 +102,7 @@ def edit_info(message: types.Message):
     client.register_next_step_handler(message, edit_info_step2)
 
 def edit_info_step2(message: types.Message):
-    if isCorrectName(message.text):
+    if isCorrectName(message.text) and len(message.text) < 255:
         client.send_message(message.chat.id, 'Введите вашу дату рождения в формате дд.мм.гггг:')
         client.register_next_step_handler(message, edit_info_step3, message.text)
     else:
@@ -142,13 +140,13 @@ def create_ivent_step2(message: types.Message, theme):
     client.register_next_step_handler(message, create_ivent_step3, theme)
 
 def isCorrectText(text):
-    if re.match(r'[А-ЯЁа-яёa-zA-Z]{3,}', text) is not None:
+    if re.search(r'[А-ЯЁа-яёa-zA-Z]{3,}', text) is not None:
         return True
     else:
         return False
 
 def create_ivent_step3(message: types.Message, theme):
-    if isCorrectText(message.text):
+    if isCorrectText(message.text) and len(message.text) < 255:
         client.send_message(message.chat.id, 'Введите описание вашего мероприятия:')
         client.register_next_step_handler(message, create_ivent_step4, theme, message.text)
     else:
@@ -156,7 +154,7 @@ def create_ivent_step3(message: types.Message, theme):
         client.register_next_step_handler(message, create_ivent_step3, theme)
 
 def create_ivent_step4(message: types.Message, theme, name):
-    if isCorrectText(message.text):
+    if isCorrectText(message.text) and len(message.text) < 255:
         client.send_message(message.chat.id, 'Введите дату вашего мероприятия в формате дд.мм.гггг:')
         client.register_next_step_handler(message, create_ivent_step5, theme, name, message.text)
     else:
@@ -179,7 +177,7 @@ def create_ivent_step5(message: types.Message, theme, name, description):
         client.register_next_step_handler(message, create_ivent_step5, theme, name, description)
 
 def isCorrectTime(text):
-    if re.match(r'([0-1][0-9]|2[0-3]):([0-5][0-9])', text) is not None:
+    if re.match(r'([0-1][0-9]|2[0-3]):([0-5][0-9])$', text) is not None:
         return True
     else:
         return False
@@ -204,7 +202,7 @@ def create_ivent_step7(message: types.Message, theme, name, description, date, t
     client.register_next_step_handler(message, create_ivent_step8, theme, name, description, date, time, message.text)
 
 def isCorrectDigit(text):
-    if re.match(r'([1-9][0-9]+)|[0-9]', text) is not None:
+    if re.match(r'([1-9][0-9]+)|[0-9]$', text) is not None:
         return True
     else:
         return False
@@ -246,10 +244,40 @@ def show_ivents(message: types.Message, page):
     elif page != 0:
         button = types.InlineKeyboardButton(text = '<', callback_data='prev_page|' + str(page))
         markup_inline.add(button)
-    elif page != (len(ivent_list) - 1)//5:
+    elif page != (len(ivent_list) - 1)//5 and number != 0:
         button = types.InlineKeyboardButton(text = '>', callback_data='next_page|' + str(page))
         markup_inline.add(button)
+    else:
+        client.send_message(message.chat.id, 'Мероприятий нет')
+        return
     client.send_message(message.chat.id, 'Предстоящие мероприятия:', reply_markup=markup_inline)
+
+def show_ivents_next(message: types.Message, page):
+    markup_inline = types.InlineKeyboardMarkup()
+    # TODO тут должно быть получение списка из бд
+    number = 0
+    for ivent in ivent_list: 
+        number += 1
+        if number >= 1+page*5 and number <= page*5+5:
+            button = types.InlineKeyboardButton(text = ivent.event_name + '\n' + ivent.event_date + ' ' + ivent.event_time, callback_data='show_ivent|' + str(ivent.event_id))
+            markup_inline.add(button)
+        elif number > page*5+5:
+            break
+    if page != 0 and page != (len(ivent_list) - 1)//5:
+        button1 = types.InlineKeyboardButton(text = '<', callback_data='prev_page|' + str(page))
+        button2 = types.InlineKeyboardButton(text = '>', callback_data='next_page|' + str(page))
+        markup_inline.add(button1, button2, row_width=2)
+    elif page != 0:
+        button = types.InlineKeyboardButton(text = '<', callback_data='prev_page|' + str(page))
+        markup_inline.add(button)
+    elif page != (len(ivent_list) - 1)//5 and number != 0:
+        button = types.InlineKeyboardButton(text = '>', callback_data='next_page|' + str(page))
+        markup_inline.add(button)
+    else:
+        client.send_message(message.chat.id, 'Мероприятий нет')
+        return
+    client.edit_message_reply_markup(chat_id=message.chat.id, message_id=message.id, reply_markup = markup_inline)
+    
 
 def show_ivent(message: types.Message, id):
     # TODO Здесь запрос к БД по id вместо того, что ниже
@@ -303,19 +331,11 @@ def answer(call):
         create_ivent_step2(call.message, theme)
     # TODO изменить, чтоб сообщение заново не отправлялось
     elif func == 'next_page':
-        client.delete_message(
-            call.message.chat.id,
-            call.message.message_id
-        )
         page = int(call.data.split('|')[1])
-        show_ivents(call.message, page+1)
+        show_ivents_next(call.message, page+1)
     elif func == 'prev_page':
-        client.delete_message(
-            call.message.chat.id,
-            call.message.message_id
-        )
         page = int(call.data.split('|')[1])
-        show_ivents(call.message, page-1)
+        show_ivents_next(call.message, page-1)
     elif func == 'show_ivent':
         ivent_id = int(call.data.split('|')[1])
         show_ivent(call.message, ivent_id)
