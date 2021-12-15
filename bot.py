@@ -4,7 +4,6 @@ import telebot
 from telebot import types
 import configure
 from geopandas.tools import geocode
-import pickle
 
 client = telebot.TeleBot(configure.config['token'])
 
@@ -59,8 +58,8 @@ def delete_event_from_database(event_id):
 def id_in_database(user_id):
     if user_id in user_set.keys():
         # TODO Запрос на проверку регистрации
-        return False
-    return True
+        return True
+    return False
 
 
 def add_user_in_database(name, birthday, user_id):
@@ -191,7 +190,7 @@ def isCorrectDigit(text):
 @client.message_handler(commands=['start', 'reset'])
 def welcome_message(message):
     keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    if id_in_database(message.chat.id):
+    if not id_in_database(message.chat.id):
         keyboard.add(*["Регистрация"])
         client.send_message(message.chat.id, 'Чтобы начать работать с ботом, вам необходимо зарегистрироваться.',
                             reply_markup=keyboard)
@@ -206,9 +205,9 @@ def welcome_message(message):
 
 @client.message_handler(content_types=["text"])
 def choose_handler(message: types.Message):
-    if message.text == "Регистрация":
+    if message.text == "Регистрация" and not id_in_database(message.chat.id):
         registration(message)
-    elif id_in_database(message.chat.id):
+    elif not id_in_database(message.chat.id):
         welcome_message(message)
     elif message.text == "Посмотреть мероприятия":
         show_events(message)
@@ -658,10 +657,15 @@ def edit_event_step7(message: types.Message, event_id, theme, name, description,
         longitude = message.location.longitude
     elif message.text is not None:
         loc = message.text
-        location = geocode(loc, provider="nominatim", user_agent='my_request')
-        point = location.geometry.iloc[0]
-        latitude = point.y
-        longitude = point.x
+        try:
+            location = geocode(loc, provider="nominatim", user_agent='my_request')
+            point = location.geometry.iloc[0]
+            latitude = point.y
+            longitude = point.x
+        except Exception:
+            client.send_message(message.chat.id, 'Некорректный адрес. Попробуйте ещё раз.')
+            client.register_next_step_handler(message, create_event_step7, theme, name, description, date, time)
+            return
     else:
         client.send_message(message.chat.id, 'Некорректный ввод. Попробуйте ещё раз.')
         client.register_next_step_handler(message, edit_event_step7, event_id, theme, name, description, date, time)
@@ -687,13 +691,28 @@ def edit_event_step8(message: types.Message, event_id, theme, name, description,
 
 def edit_event_step9(message: types.Message, event_id, theme, name, description, date, time, place, pay):
     if message.text is not None and isCorrectDigit(message.text):
-        client.send_message(message.chat.id, 'Данные успешно изменены.')
-        edit_event_info_in_database(event_id, name, description, date, time, place, theme, pay, message.text,
-                                    message.chat.id)
+        client.send_message(message.chat.id, 'Вы действительно хотите редактировать ваше мероприятие? Введите "Да" или "Нет".')
+        client.register_next_step_handler(message, edit_event_step10, event_id, theme, name, description, date, time,
+                                          place, pay, message.text)
     else:
         client.send_message(message.chat.id, 'Некорректный ввод. Попробуйте ещё раз.')
         client.register_next_step_handler(message, edit_event_step9, event_id, theme, name, description, date, time,
                                           place, pay)
+
+
+def edit_event_step10(message: types.Message, event_id, theme, name, description, date, time, place, pay, seats):
+    if message.text is not None:
+        if message.text.lower() == "да":
+            edit_event_info_in_database(event_id, name, description, date, time, place, theme, pay, seats,
+                                    message.chat.id)
+        elif message.text.lower() != "нет":
+            client.send_message(message.chat.id, 'Некорректный ввод. Попробуйте ещё раз.')
+            client.register_next_step_handler(message, edit_event_step10, event_id, theme, name, description, date, time,
+                                          place, pay, seats)
+    else:
+        client.send_message(message.chat.id, 'Некорректный ввод. Попробуйте ещё раз.')
+        client.register_next_step_handler(message, edit_event_step10, event_id, theme, name, description, date, time,
+                                          place, pay, seats)
 
 
 def delete_event(message: types.Message, event_id):
