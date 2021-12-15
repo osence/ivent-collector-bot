@@ -3,7 +3,8 @@ import re
 import telebot
 from telebot import types
 import configure
-#from geopandas.tools import geocode
+from geopandas.tools import geocode
+import pickle
 
 client = telebot.TeleBot(configure.config['token'])
 
@@ -22,7 +23,6 @@ class Event:
         self.user_who_create = who_create
 
 
-event_dict = {}
 event_list = []
 i = 0
 user_set = dict()
@@ -33,7 +33,7 @@ def add_event_in_database(name, description, date, time, place, theme, pay, seat
     # TODO Запрос на добавление события
     global i  # pylint: disable=global-statement
     event_list.append(Event(i, name, description, date, time, place, theme, pay, seats, user_id))
-    i+=1
+    i += 1
 
 
 def edit_event_info_in_database(event_id, name, description, date, time, place, theme, pay, seats, user_id):
@@ -154,9 +154,10 @@ def get_events_filter_pay_from_database(min_pay, max_pay):
     # TODO Запрос на список мероприятий конкретной стоимости
     return event_list
 
+
 def get_user_who_registered(event_id):
     # TODO Запрос на список пользователей, зарегистрировавшихся на мероприятие
-    return list(user_set.keys)
+    return list(user_set.keys())
 
 
 def isCorrectName(text):
@@ -243,8 +244,8 @@ def registration_step2(message: types.Message):
             client.send_message(message.chat.id, 'Слишком длинная строка. Попробуйте ещё раз.')
             client.register_next_step_handler(message, registration_step2)
     else:
-         client.send_message(message.chat.id, 'Некорректный ввод. Попробуйте ещё раз.')
-         client.register_next_step_handler(message, registration_step2)
+        client.send_message(message.chat.id, 'Некорректный ввод. Попробуйте ещё раз.')
+        client.register_next_step_handler(message, registration_step2)
 
 
 def registration_step3(message: types.Message, name):
@@ -407,7 +408,7 @@ def create_event_step6(message: types.Message, theme, name, description, date):
             client.send_message(message.chat.id, 'Невозможное время. Попробуйте ещё раз.')
             client.register_next_step_handler(message, create_event_step6, theme, name, description, date)
         else:
-            client.send_message(message.chat.id, 'Введите место проведения:')
+            client.send_message(message.chat.id, 'Введите место проведения или прикрепите геолокацию:')
             client.register_next_step_handler(message, create_event_step7, theme, name, description, date, message.text)
     else:
         client.send_message(message.chat.id, 'Некорректный ввод. Попробуйте ещё раз.')
@@ -415,30 +416,32 @@ def create_event_step6(message: types.Message, theme, name, description, date):
 
 
 def create_event_step7(message: types.Message, theme, name, description, date, time):
-    #latitude = None
-    #longitude = None
+    latitude = None
+    longitude = None
 
-    #if message.location is not None:
-    #    latitude = message.location.latitude
-    #    longitude = message.location.longitude
-    #elif message.text is not None:
-    #    loc = message.text
-    #    location = geocode(loc, provider="nominatim", user_agent = 'my_request')
-    #    point = location.geometry.iloc[0]
-    #    latitude = point.y
-    #    longitude = point.x
-    #else:
-    #    client.send_message(message.chat.id, 'Некорректный ввод. Попробуйте ещё раз.')
-    #    client.register_next_step_handler(message, create_event_step7, theme, name, description, date, time)
-    #    return
-    
-    #place = str(latitude) + '|' + str(longitude)
-    #client.send_message(message.chat.id, 'Введите стоимость посещения (целое число):')
-    #client.register_next_step_handler(message, create_event_step8, theme, name, description, date, time, place)
+    if message.location is not None:
+        latitude = message.location.latitude
+        longitude = message.location.longitude
+    elif message.text is not None:
+        loc = message.text
+        try:
+            location = geocode(loc, provider="nominatim", user_agent='my_request')
+            point = location.geometry.iloc[0]
+            latitude = point.y
+            longitude = point.x
+        except Exception:
+            client.send_message(message.chat.id, 'Некорректный адрес. Попробуйте ещё раз.')
+            client.register_next_step_handler(message, create_event_step7, theme, name, description, date, time)
+            return
 
-    # TODO Проверка работы координат (убрать это, раскоментировать выше)
+    else:
+        client.send_message(message.chat.id, 'Некорректный ввод. Попробуйте ещё раз.')
+        client.register_next_step_handler(message, create_event_step7, theme, name, description, date, time)
+        return
+
+    place = str(latitude) + '|' + str(longitude)
     client.send_message(message.chat.id, 'Введите стоимость посещения (целое число):')
-    client.register_next_step_handler(message, create_event_step8, theme, name, description, date, time, message.text)
+    client.register_next_step_handler(message, create_event_step8, theme, name, description, date, time, place)
 
 
 def create_event_step8(message: types.Message, theme, name, description, date, time, place):
@@ -473,7 +476,7 @@ def show_events(message: types.Message):
             markup_inline.add(button)
         elif number > 5:
             break
-    
+
     if 0 != (len(events) - 1) // 5 and number != 0:
         button = types.InlineKeyboardButton(text='>', callback_data='next_page|0')
         markup_inline.add(button)
@@ -516,20 +519,21 @@ def show_event(message: types.Message, event_id):
     event_info = get_event_info_from_database(event_id)
     if event_info is not None:
         seats = ''
-        if event_info.event_number_of_seats == 0:
-            seats = 'Не ограничено'
+        if event_info.event_number_of_seats == str(0):
+            seats = 'не ограничено'
         else:
             seats = event_info.event_number_of_seats
         text = ('Название: ' + event_info.event_name +
                 '\nДата: ' + event_info.event_date +
                 '\nВремя: ' + event_info.event_time +
                 '\nОписание: ' + event_info.event_description +
-                '\nКатегория: ' + event_info.event_subject +
+                '\nКатегория: ' + event_info.event_subject.lower() +
                 '\nСтоимость: ' + event_info.event_pay +
                 '\nКоличество мест: ' + seats
                 )
         markup_inline = types.InlineKeyboardMarkup()
-        button1 = types.InlineKeyboardButton(text='Посмотреть местоположение', callback_data='show_coord|' + event_info.event_place)
+        button1 = types.InlineKeyboardButton(text='Посмотреть местоположение',
+                                             callback_data='show_coord|' + event_info.event_place)
         markup_inline.add(button1)
         if event_info.user_who_create == message.chat.id:
             button2 = types.InlineKeyboardButton(text='Редактировать', callback_data='edit_event|' + str(event_id))
@@ -537,10 +541,12 @@ def show_event(message: types.Message, event_id):
             markup_inline.add(button2, button3)
         else:
             if user_is_registered(message.chat.id, event_id):
-                button2 = types.InlineKeyboardButton(text='Отменить регистрацию', callback_data='cansel_reg|' + str(event_id))
+                button2 = types.InlineKeyboardButton(text='Отменить регистрацию',
+                                                     callback_data='cansel_reg|' + str(event_id))
                 markup_inline.add(button2)
             else:
-                button2 = types.InlineKeyboardButton(text='Зарегистрироваться', callback_data='register|' + str(event_id))
+                button2 = types.InlineKeyboardButton(text='Зарегистрироваться',
+                                                     callback_data='register|' + str(event_id))
                 markup_inline.add(button2)
         client.send_message(message.chat.id, text, reply_markup=markup_inline)
     else:
@@ -549,15 +555,16 @@ def show_event(message: types.Message, event_id):
 
 def edit_event(message: types.Message, event_id):
     markup_inline = types.InlineKeyboardMarkup()
-    button_1 = types.InlineKeyboardButton(text='Выставка', callback_data='edit_event_st2|Выставка|'+str(event_id))
-    button_2 = types.InlineKeyboardButton(text='Концерт', callback_data='edit_event_st2|Концерт|'+str(event_id))
-    button_3 = types.InlineKeyboardButton(text='Спектакль', callback_data='edit_event_st2|Спектакль|'+str(event_id))
-    button_4 = types.InlineKeyboardButton(text='Обучение', callback_data='edit_event_st2|Обучение|'+str(event_id))
-    button_5 = types.InlineKeyboardButton(text='Встреча', callback_data='edit_event_st2|Встреча|'+str(event_id))
-    button_6 = types.InlineKeyboardButton(text='Экскурсия', callback_data='edit_event_st2|Экскурсия|'+str(event_id))
-    button_7 = types.InlineKeyboardButton(text='Праздник', callback_data='edit_event_st2|Праздник|'+str(event_id))
-    button_8 = types.InlineKeyboardButton(text='Другое', callback_data='edit_event_st2|Другое|'+str(event_id))
-    button_9 = types.InlineKeyboardButton(text='Без категории', callback_data='edit_event_st2|Без категории|'+str(event_id))
+    button_1 = types.InlineKeyboardButton(text='Выставка', callback_data='edit_event_st2|Выставка|' + str(event_id))
+    button_2 = types.InlineKeyboardButton(text='Концерт', callback_data='edit_event_st2|Концерт|' + str(event_id))
+    button_3 = types.InlineKeyboardButton(text='Спектакль', callback_data='edit_event_st2|Спектакль|' + str(event_id))
+    button_4 = types.InlineKeyboardButton(text='Обучение', callback_data='edit_event_st2|Обучение|' + str(event_id))
+    button_5 = types.InlineKeyboardButton(text='Встреча', callback_data='edit_event_st2|Встреча|' + str(event_id))
+    button_6 = types.InlineKeyboardButton(text='Экскурсия', callback_data='edit_event_st2|Экскурсия|' + str(event_id))
+    button_7 = types.InlineKeyboardButton(text='Праздник', callback_data='edit_event_st2|Праздник|' + str(event_id))
+    button_8 = types.InlineKeyboardButton(text='Другое', callback_data='edit_event_st2|Другое|' + str(event_id))
+    button_9 = types.InlineKeyboardButton(text='Без категории',
+                                          callback_data='edit_event_st2|Без категории|' + str(event_id))
     markup_inline.add(button_1, button_2, button_3, button_4, button_5, button_6, button_7, button_8, button_9,
                       row_width=2)
     client.send_message(message.chat.id, 'Выберите тематику вашего мероприятия:', reply_markup=markup_inline)
@@ -615,7 +622,8 @@ def edit_event_step5(message: types.Message, event_id, theme, name, description)
                 client.register_next_step_handler(message, edit_event_step5, event_id, theme, name, description)
             else:
                 client.send_message(message.chat.id, 'Введите время вашего мероприятия (в формате чч:мм):')
-                client.register_next_step_handler(message, edit_event_step6, event_id, theme, name, description, message.text)
+                client.register_next_step_handler(message, edit_event_step6, event_id, theme, name, description,
+                                                  message.text)
         except ValueError:
             client.send_message(message.chat.id, 'Некорректный ввод. Попробуйте ещё раз.')
             client.register_next_step_handler(message, edit_event_step5, event_id, theme, name, description)
@@ -634,56 +642,58 @@ def edit_event_step6(message: types.Message, event_id, theme, name, description,
             client.register_next_step_handler(message, edit_event_step6, event_id, theme, name, description, date)
         else:
             client.send_message(message.chat.id, 'Введите место проведения или прикрепите геолокацию:')
-            client.register_next_step_handler(message, edit_event_step7, event_id, theme, name, description, date, message.text)
+            client.register_next_step_handler(message, edit_event_step7, event_id, theme, name, description, date,
+                                              message.text)
     else:
         client.send_message(message.chat.id, 'Некорректный ввод. Попробуйте ещё раз.')
         client.register_next_step_handler(message, edit_event_step6, event_id, theme, name, description, date)
 
 
 def edit_event_step7(message: types.Message, event_id, theme, name, description, date, time):
-    #latitude = None
-    #longitude = None
+    latitude = None
+    longitude = None
 
-    #if message.location is not None:
-    #    latitude = message.location.latitude
-    #    longitude = message.location.longitude
-    #elif message.text is not None:
-    #    loc = message.text
-    #    location = geocode(loc, provider="nominatim", user_agent = 'my_request')
-    #    point = location.geometry.iloc[0]
-    #    latitude = point.y
-    #    longitude = point.x
-    #else:
-    #    client.send_message(message.chat.id, 'Некорректный ввод. Попробуйте ещё раз.')
-    #    client.register_next_step_handler(message, edit_event_step7, event_id, theme, name, description, date, time)
-    #    return
-    
-    #place = str(latitude) + '|' + str(longitude)
-    #client.send_message(message.chat.id, 'Введите стоимость посещения (целое число):')
-    #client.register_next_step_handler(message, edit_event_step8, event_id, theme, name, description, date, time, place)
+    if message.location is not None:
+        latitude = message.location.latitude
+        longitude = message.location.longitude
+    elif message.text is not None:
+        loc = message.text
+        location = geocode(loc, provider="nominatim", user_agent='my_request')
+        point = location.geometry.iloc[0]
+        latitude = point.y
+        longitude = point.x
+    else:
+        client.send_message(message.chat.id, 'Некорректный ввод. Попробуйте ещё раз.')
+        client.register_next_step_handler(message, edit_event_step7, event_id, theme, name, description, date, time)
+        return
 
-    # TODO Проверка работы координат (убрать это, раскоментировать выше)
+    place = str(latitude) + '|' + str(longitude)
     client.send_message(message.chat.id, 'Введите стоимость посещения (целое число):')
-    client.register_next_step_handler(message, edit_event_step8, event_id, theme, name, description, date, time, message.text)
+    client.register_next_step_handler(message, edit_event_step8, event_id, theme, name, description, date, time, place)
+
 
 
 def edit_event_step8(message: types.Message, event_id, theme, name, description, date, time, place):
     if message.text is not None and isCorrectDigit(message.text):
         client.send_message(message.chat.id, 'Введите количество мест (0 - не ограничено):')
-        client.register_next_step_handler(message, edit_event_step9, event_id, theme, name, description, date, time, place,
+        client.register_next_step_handler(message, edit_event_step9, event_id, theme, name, description, date, time,
+                                          place,
                                           message.text)
     else:
         client.send_message(message.chat.id, 'Некорректный ввод. Попробуйте ещё раз.')
-        client.register_next_step_handler(message, edit_event_step8, event_id, theme, name, description, date, time, place)
+        client.register_next_step_handler(message, edit_event_step8, event_id, theme, name, description, date, time,
+                                          place)
 
 
 def edit_event_step9(message: types.Message, event_id, theme, name, description, date, time, place, pay):
     if message.text is not None and isCorrectDigit(message.text):
         client.send_message(message.chat.id, 'Данные успешно изменены.')
-        edit_event_info_in_database(event_id, name, description, date, time, place, theme, pay, message.text, message.chat.id)
+        edit_event_info_in_database(event_id, name, description, date, time, place, theme, pay, message.text,
+                                    message.chat.id)
     else:
         client.send_message(message.chat.id, 'Некорректный ввод. Попробуйте ещё раз.')
-        client.register_next_step_handler(message, edit_event_step9, event_id, theme, name, description, date, time, place, pay)
+        client.register_next_step_handler(message, edit_event_step9, event_id, theme, name, description, date, time,
+                                          place, pay)
 
 
 def delete_event(message: types.Message, event_id):
@@ -697,7 +707,7 @@ def delete_event_step2(message: types.Message, event_id):
             event = get_event_info_from_database(event_id)
             text = 'Мероприятие "' + event.event_name + '", на которое вы были зарегистрированы, было удалено из списка мероприятий его создателем.'
             list_users = get_user_who_registered(event_id)
-            for user in kist_users:
+            for user in list_users:
                 client.send_message(user, text)
             delete_event_from_database(event_id)
         elif message.text.lower() != "нет":
@@ -759,7 +769,7 @@ def events_in_user_plans(message: types.Message):
             markup_inline.add(button)
         elif number > 5:
             break
-  
+
     if 0 != (len(events) - 1) // 5 and number != 0:
         button = types.InlineKeyboardButton(text='>', callback_data='next_page_2|0')
         markup_inline.add(button)
@@ -811,7 +821,7 @@ def events_of_user(message: types.Message):
             markup_inline.add(button)
         elif number > 5:
             break
-    
+
     if 0 != (len(events) - 1) // 5 and number != 0:
         button = types.InlineKeyboardButton(text='>', callback_data='next_page_3|0')
         markup_inline.add(button)
@@ -867,28 +877,25 @@ def search_location(message: types.Message):
 
 
 def search_location_step2(message: types.Message):
-    #latitude = None
-    #longitude = None
+    latitude = None
+    longitude = None
 
-    #if message.location is not None:
-    #    latitude = message.location.latitude
-    #    longitude = message.location.longitude
-    #elif message.text is not None:
-    #    loc = message.text
-    #    location = geocode(loc, provider="nominatim", user_agent = 'my_request')
-    #    point = location.geometry.iloc[0]
-    #    latitude = point.y
-    #    longitude = point.x
-    #else:
-    #    client.send_message(message.chat.id, 'Некорректный ввод. Попробуйте ещё раз.')
-    #    client.register_next_step_handler(message, edit_event_step7, event_id, theme, name, description, date, time)
-    #    return
-    
-    #place = str(latitude) + '|' + str(longitude)
-    #show_events_filter_location(message, place, 0)
+    if message.location is not None:
+        latitude = message.location.latitude
+        longitude = message.location.longitude
+    elif message.text is not None:
+        loc = message.text
+        location = geocode(loc, provider="nominatim", user_agent='my_request')
+        point = location.geometry.iloc[0]
+        latitude = point.y
+        longitude = point.x
+    else:
+        client.send_message(message.chat.id, 'Некорректный ввод. Попробуйте ещё раз.')
+        client.register_next_step_handler(message, search_date_step2)
+        return
 
-    # TODO Проверка работы координат (убрать это, раскоментировать выше)
-    pass
+    place = str(latitude) + '|' + str(longitude)
+    show_events_filter_location(message, place)
 
 
 def show_events_filter_location(message: types.Message, place):
@@ -904,7 +911,7 @@ def show_events_filter_location(message: types.Message, place):
             markup_inline.add(button)
         elif number > 5:
             break
-    
+
     if 0 != (len(events) - 1) // 5 and number != 0:
         button = types.InlineKeyboardButton(text='>', callback_data='next_page_4|' + place + '|0')
         markup_inline.add(button)
@@ -999,7 +1006,7 @@ def show_events_filter_date(message: types.Message, date_begin, date_end):
             markup_inline.add(button)
         elif number > 5:
             break
-    
+
     if 0 != (len(events) - 1) // 5 and number != 0:
         button = types.InlineKeyboardButton(text='>', callback_data='next_page_5|' + date_begin + '|' + date_end + '|0')
         markup_inline.add(button)
@@ -1023,14 +1030,22 @@ def show_events_filter_date_next(message: types.Message, date_begin, date_end, p
         elif number > page * 5 + 5:
             break
     if page != 0 and page != (len(events) - 1) // 5:
-        button1 = types.InlineKeyboardButton(text='<', callback_data='prev_page_5|' + date_begin + '|' + date_end + '|' + str(page))
-        button2 = types.InlineKeyboardButton(text='>', callback_data='next_page_5|' + date_begin + '|' + date_end + '|' + str(page))
+        button1 = types.InlineKeyboardButton(text='<',
+                                             callback_data='prev_page_5|' + date_begin + '|' + date_end + '|' + str(
+                                                 page))
+        button2 = types.InlineKeyboardButton(text='>',
+                                             callback_data='next_page_5|' + date_begin + '|' + date_end + '|' + str(
+                                                 page))
         markup_inline.add(button1, button2, row_width=2)
     elif page != 0:
-        button = types.InlineKeyboardButton(text='<', callback_data='prev_page_5|' + date_begin + '|' + date_end + '|' + str(page))
+        button = types.InlineKeyboardButton(text='<',
+                                            callback_data='prev_page_5|' + date_begin + '|' + date_end + '|' + str(
+                                                page))
         markup_inline.add(button)
     elif page != (len(events) - 1) // 5 and number != 0:
-        button = types.InlineKeyboardButton(text='>', callback_data='next_page_5|' + date_begin + '|' + date_end + '|' + str(page))
+        button = types.InlineKeyboardButton(text='>',
+                                            callback_data='next_page_5|' + date_begin + '|' + date_end + '|' + str(
+                                                page))
         markup_inline.add(button)
     elif number == 0:
         client.send_message(message.chat.id, 'Мероприятий, проходящих в данные даты, нет.')
@@ -1067,7 +1082,7 @@ def show_events_filter_theme(message: types.Message, theme):
             markup_inline.add(button)
         elif number > 5:
             break
-    
+
     if 0 != (len(events) - 1) // 5 and number != 0:
         button = types.InlineKeyboardButton(text='>', callback_data='next_page_6|' + theme + '|0')
         markup_inline.add(button)
@@ -1110,6 +1125,7 @@ def search_pay(message: types.Message):
     client.send_message(message.chat.id, 'Введите минимальную стоимость:')
     client.register_next_step_handler(message, search_pay_step2)
 
+
 def search_pay_step2(message: types.Message):
     if message.text is not None and isCorrectDigit(message.text):
         client.send_message(message.chat.id, 'Введите максимальную стоимость:')
@@ -1124,7 +1140,8 @@ def search_pay_step3(message: types.Message, min_pay):
         if int(message.text) >= int(min_pay):
             show_events_filter_pay(message, min_pay, message.text)
         else:
-            client.send_message(message.chat.id, 'Максимальная сумма не может быть меньше минимальной. Попробуйте ещё раз.')
+            client.send_message(message.chat.id,
+                                'Максимальная сумма не может быть меньше минимальной. Попробуйте ещё раз.')
             client.register_next_step_handler(message, search_pay_step3, min_pay)
     else:
         client.send_message(message.chat.id, 'Некорректный ввод. Попробуйте ещё раз.')
@@ -1144,7 +1161,7 @@ def show_events_filter_pay(message: types.Message, min_pay, max_pay):
             markup_inline.add(button)
         elif number > 5:
             break
-    
+
     if 0 != (len(events) - 1) // 5 and number != 0:
         button = types.InlineKeyboardButton(text='>', callback_data='next_page_7|' + min_pay + '|' + max_pay + '|0')
         markup_inline.add(button)
@@ -1168,14 +1185,18 @@ def show_events_filter_pay_next(message: types.Message, min_pay, max_pay, page):
         elif number > page * 5 + 5:
             break
     if page != 0 and page != (len(events) - 1) // 5:
-        button1 = types.InlineKeyboardButton(text='<', callback_data='prev_page_7|' + min_pay + '|' + max_pay + '|' + str(page))
-        button2 = types.InlineKeyboardButton(text='>', callback_data='next_page_7|' + min_pay + '|' + max_pay + '|' + str(page))
+        button1 = types.InlineKeyboardButton(text='<',
+                                             callback_data='prev_page_7|' + min_pay + '|' + max_pay + '|' + str(page))
+        button2 = types.InlineKeyboardButton(text='>',
+                                             callback_data='next_page_7|' + min_pay + '|' + max_pay + '|' + str(page))
         markup_inline.add(button1, button2, row_width=2)
     elif page != 0:
-        button = types.InlineKeyboardButton(text='<', callback_data='prev_page_7|' + min_pay + '|' + max_pay + '|' + str(page))
+        button = types.InlineKeyboardButton(text='<',
+                                            callback_data='prev_page_7|' + min_pay + '|' + max_pay + '|' + str(page))
         markup_inline.add(button)
     elif page != (len(events) - 1) // 5 and number != 0:
-        button = types.InlineKeyboardButton(text='>', callback_data='next_page_7|' + min_pay + '|' + max_pay + '|' + str(page))
+        button = types.InlineKeyboardButton(text='>',
+                                            callback_data='next_page_7|' + min_pay + '|' + max_pay + '|' + str(page))
         markup_inline.add(button)
     elif number == 0:
         client.send_message(message.chat.id, 'Мероприятий в данном диапазоне стоимости нет.')
