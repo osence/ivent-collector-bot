@@ -135,6 +135,30 @@ def get_events_of_user_from_database(user_id):
     return list
 
 
+def get_events_filter_location_from_database(latitude, longitude):
+    # TODO Запрос на список мероприятий в конкретной локации (широта и высота сравниваются отбрасывая некоторые цифры после точки с запятой)
+    return event_list
+
+
+def get_events_filter_date_from_database(date_begin, date_end):
+    # TODO Запрос на список мероприятий в конкретные даты (включая края)
+    return event_list
+
+
+def get_events_filter_theme_from_database(theme):
+    # TODO Запрос на список мероприятий конкретной тематики
+    return event_list
+
+
+def get_events_filter_pay_from_database(min_pay, max_pay):
+    # TODO Запрос на список мероприятий конкретной стоимости
+    return event_list
+
+def get_user_who_registered(event_id):
+    # TODO Запрос на список пользователей, зарегистрировавшихся на мероприятие
+    return list(user_set.keys)
+
+
 def isCorrectName(text):
     if re.match(r'^[А-ЯЁ][а-яё]+(-[А-Яа-яЁё][а-яё]+)*( [А-ЯЁ][а-яё]+(-[А-Яа-яЁё][а-яё]+)*)+$', text) is not None:
         return True
@@ -186,13 +210,13 @@ def choose_handler(message: types.Message):
     elif id_in_database(message.chat.id):
         welcome_message(message)
     elif message.text == "Посмотреть мероприятия":
-        show_events(message, 0)
+        show_events(message)
     elif message.text == "Создать мероприятие":
         create_event(message)
     elif message.text == "Мои события":
-        events_of_user(message, 0)
+        events_of_user(message)
     elif message.text == "Мои планы":
-        events_in_user_plans(message, 0)
+        events_in_user_plans(message)
     elif message.text == "Поиск по событиям":
         search(message)
     elif message.text == "Мой аккаунт":
@@ -436,28 +460,22 @@ def create_event_step9(message: types.Message, theme, name, description, date, t
         client.register_next_step_handler(message, create_event_step9, theme, name, description, date, time, place, pay)
 
 
-def show_events(message: types.Message, page):
+def show_events(message: types.Message):
     markup_inline = types.InlineKeyboardMarkup()
     events = get_events_from_database()
     number = 0
     for event in events:
         number += 1
-        if 1 + page * 5 <= number <= page * 5 + 5:
+        if 1 <= number <= 5:
             button = types.InlineKeyboardButton(
                 text=event.event_name + '\n' + event.event_date + ' ' + event.event_time,
                 callback_data='show_event|' + str(event.event_id))
             markup_inline.add(button)
-        elif number > page * 5 + 5:
+        elif number > 5:
             break
-    if page != 0 and page != (len(events) - 1) // 5:
-        button1 = types.InlineKeyboardButton(text='<', callback_data='prev_page|' + str(page))
-        button2 = types.InlineKeyboardButton(text='>', callback_data='next_page|' + str(page))
-        markup_inline.add(button1, button2, row_width=2)
-    elif page != 0:
-        button = types.InlineKeyboardButton(text='<', callback_data='prev_page|' + str(page))
-        markup_inline.add(button)
-    elif page != (len(events) - 1) // 5 and number != 0:
-        button = types.InlineKeyboardButton(text='>', callback_data='next_page|' + str(page))
+    
+    if 0 != (len(events) - 1) // 5 and number != 0:
+        button = types.InlineKeyboardButton(text='>', callback_data='next_page|0')
         markup_inline.add(button)
     elif number == 0:
         client.send_message(message.chat.id, 'Мероприятий нет')
@@ -615,7 +633,7 @@ def edit_event_step6(message: types.Message, event_id, theme, name, description,
             client.send_message(message.chat.id, 'Невозможное время. Попробуйте ещё раз.')
             client.register_next_step_handler(message, edit_event_step6, event_id, theme, name, description, date)
         else:
-            client.send_message(message.chat.id, 'Введите место проведения:')
+            client.send_message(message.chat.id, 'Введите место проведения или прикрепите геолокацию:')
             client.register_next_step_handler(message, edit_event_step7, event_id, theme, name, description, date, message.text)
     else:
         client.send_message(message.chat.id, 'Некорректный ввод. Попробуйте ещё раз.')
@@ -676,6 +694,11 @@ def delete_event(message: types.Message, event_id):
 def delete_event_step2(message: types.Message, event_id):
     if message.text is not None:
         if message.text.lower() == "да":
+            event = get_event_info_from_database(event_id)
+            text = 'Мероприятие "' + event.event_name + '", на которое вы были зарегистрированы, было удалено из списка мероприятий его создателем.'
+            list_users = get_user_who_registered(event_id)
+            for user in kist_users:
+                client.send_message(user, text)
             delete_event_from_database(event_id)
         elif message.text.lower() != "нет":
             client.send_message(message.chat.id, 'Некорректный ввод. Попробуйте ещё раз.')
@@ -723,28 +746,22 @@ def cansel_registration_step2(message: types.Message, event_id):
         client.register_next_step_handler(message, cansel_registration_step2, event_id)
 
 
-def events_in_user_plans(message: types.Message, page):
+def events_in_user_plans(message: types.Message):
     markup_inline = types.InlineKeyboardMarkup()
     events = get_events_in_user_plans_from_database(message.chat.id)
     number = 0
     for event in events:
         number += 1
-        if 1 + page * 5 <= number <= page * 5 + 5:
+        if 1 <= number <= 5:
             button = types.InlineKeyboardButton(
                 text=event.event_name + '\n' + event.event_date + ' ' + event.event_time,
                 callback_data='show_event|' + str(event.event_id))
             markup_inline.add(button)
-        elif number > page * 5 + 5:
+        elif number > 5:
             break
-    if page != 0 and page != (len(events) - 1) // 5:
-        button1 = types.InlineKeyboardButton(text='<', callback_data='prev_page_2|' + str(page))
-        button2 = types.InlineKeyboardButton(text='>', callback_data='next_page_2|' + str(page))
-        markup_inline.add(button1, button2, row_width=2)
-    elif page != 0:
-        button = types.InlineKeyboardButton(text='<', callback_data='prev_page_2|' + str(page))
-        markup_inline.add(button)
-    elif page != (len(events) - 1) // 5 and number != 0:
-        button = types.InlineKeyboardButton(text='>', callback_data='next_page_2|' + str(page))
+  
+    if 0 != (len(events) - 1) // 5 and number != 0:
+        button = types.InlineKeyboardButton(text='>', callback_data='next_page_2|0')
         markup_inline.add(button)
     elif number == 0:
         client.send_message(message.chat.id, 'Вы еще не зарегистрировались ни на одно мероприятие.')
@@ -781,28 +798,22 @@ def events_in_user_plans_next(message: types.Message, page):
     client.edit_message_reply_markup(chat_id=message.chat.id, message_id=message.id, reply_markup=markup_inline)
 
 
-def events_of_user(message: types.Message, page):
+def events_of_user(message: types.Message):
     markup_inline = types.InlineKeyboardMarkup()
     events = get_events_of_user_from_database(message.chat.id)
     number = 0
     for event in events:
         number += 1
-        if 1 + page * 5 <= number <= page * 5 + 5:
+        if 1 <= number <= 5:
             button = types.InlineKeyboardButton(
                 text=event.event_name + '\n' + event.event_date + ' ' + event.event_time,
                 callback_data='show_event|' + str(event.event_id))
             markup_inline.add(button)
-        elif number > page * 5 + 5:
+        elif number > 5:
             break
-    if page != 0 and page != (len(events) - 1) // 5:
-        button1 = types.InlineKeyboardButton(text='<', callback_data='prev_page_3|' + str(page))
-        button2 = types.InlineKeyboardButton(text='>', callback_data='next_page_3|' + str(page))
-        markup_inline.add(button1, button2, row_width=2)
-    elif page != 0:
-        button = types.InlineKeyboardButton(text='<', callback_data='prev_page_3|' + str(page))
-        markup_inline.add(button)
-    elif page != (len(events) - 1) // 5 and number != 0:
-        button = types.InlineKeyboardButton(text='>', callback_data='next_page_3|' + str(page))
+    
+    if 0 != (len(events) - 1) // 5 and number != 0:
+        button = types.InlineKeyboardButton(text='>', callback_data='next_page_3|0')
         markup_inline.add(button)
     elif number == 0:
         client.send_message(message.chat.id, 'Вы еще не создали ни одного мероприятия.')
@@ -851,18 +862,325 @@ def search(message: types.Message):
 
 
 def search_location(message: types.Message):
+    client.send_message(message.chat.id, 'Введите место проведения или прикрепите геолокацию:')
+    client.register_next_step_handler(message, search_location_step2)
+
+
+def search_location_step2(message: types.Message):
+    #latitude = None
+    #longitude = None
+
+    #if message.location is not None:
+    #    latitude = message.location.latitude
+    #    longitude = message.location.longitude
+    #elif message.text is not None:
+    #    loc = message.text
+    #    location = geocode(loc, provider="nominatim", user_agent = 'my_request')
+    #    point = location.geometry.iloc[0]
+    #    latitude = point.y
+    #    longitude = point.x
+    #else:
+    #    client.send_message(message.chat.id, 'Некорректный ввод. Попробуйте ещё раз.')
+    #    client.register_next_step_handler(message, edit_event_step7, event_id, theme, name, description, date, time)
+    #    return
+    
+    #place = str(latitude) + '|' + str(longitude)
+    #show_events_filter_location(message, place, 0)
+
+    # TODO Проверка работы координат (убрать это, раскоментировать выше)
     pass
+
+
+def show_events_filter_location(message: types.Message, place):
+    markup_inline = types.InlineKeyboardMarkup()
+    events = get_events_filter_location_from_database(place.split('|')[0], place.split('|')[1])
+    number = 0
+    for event in events:
+        number += 1
+        if 1 <= number <= 5:
+            button = types.InlineKeyboardButton(
+                text=event.event_name + '\n' + event.event_date + ' ' + event.event_time,
+                callback_data='show_event|' + str(event.event_id))
+            markup_inline.add(button)
+        elif number > 5:
+            break
+    
+    if 0 != (len(events) - 1) // 5 and number != 0:
+        button = types.InlineKeyboardButton(text='>', callback_data='next_page_4|' + place + '|0')
+        markup_inline.add(button)
+    elif number == 0:
+        client.send_message(message.chat.id, 'Мероприятий в данной локации нет.')
+        return
+    client.send_message(message.chat.id, 'Мероприятия в данной локации:', reply_markup=markup_inline)
+
+
+def show_events_filter_location_next(message: types.Message, place, page):
+    markup_inline = types.InlineKeyboardMarkup()
+    events = get_events_filter_location_from_database(place.split('|')[0], place.split('|')[1])
+    number = 0
+    for event in events:
+        number += 1
+        if 1 + page * 5 <= number <= page * 5 + 5:
+            button = types.InlineKeyboardButton(
+                text=event.event_name + '\n' + event.event_date + ' ' + event.event_time,
+                callback_data='show_event|' + str(event.event_id))
+            markup_inline.add(button)
+        elif number > page * 5 + 5:
+            break
+    if page != 0 and page != (len(events) - 1) // 5:
+        button1 = types.InlineKeyboardButton(text='<', callback_data='prev_page_4|' + place + '|' + str(page))
+        button2 = types.InlineKeyboardButton(text='>', callback_data='next_page_4|' + place + '|' + str(page))
+        markup_inline.add(button1, button2, row_width=2)
+    elif page != 0:
+        button = types.InlineKeyboardButton(text='<', callback_data='prev_page_4|' + place + '|' + str(page))
+        markup_inline.add(button)
+    elif page != (len(events) - 1) // 5 and number != 0:
+        button = types.InlineKeyboardButton(text='>', callback_data='next_page_4|' + place + '|' + str(page))
+        markup_inline.add(button)
+    elif number == 0:
+        client.send_message(message.chat.id, 'Мероприятий в данной локации нет.')
+        return
+    client.edit_message_reply_markup(chat_id=message.chat.id, message_id=message.id, reply_markup=markup_inline)
 
 
 def search_date(message: types.Message):
-    pass
+    client.send_message(message.chat.id, 'Введите нижнюю границу поиска в формате дд.мм.гггг:')
+    client.register_next_step_handler(message, search_date_step2)
+
+
+def search_date_step2(message: types.Message):
+    if message.text is not None:
+        try:
+            user_datetime = datetime.datetime.strptime(message.text, "%d.%m.%Y")
+            user_date = datetime.date(user_datetime.year, user_datetime.month, user_datetime.day)
+            now_date = datetime.date.today()
+            if user_date < now_date:
+                client.send_message(message.chat.id, 'Невозможная дата. Попробуйте еще раз.')
+                client.register_next_step_handler(message, search_date_step2)
+            else:
+                client.send_message(message.chat.id, 'Введите верхнюю границу поиска в формате дд.мм.гггг:')
+                client.register_next_step_handler(message, search_date_step3, message.text)
+        except ValueError:
+            client.send_message(message.chat.id, 'Некорректный ввод. Попробуйте ещё раз.')
+            client.register_next_step_handler(message, search_date_step2)
+    else:
+        client.send_message(message.chat.id, 'Некорректный ввод. Попробуйте ещё раз.')
+        client.register_next_step_handler(message, search_date_step2)
+
+
+def search_date_step3(message: types.Message, date_begin):
+    if message.text is not None:
+        try:
+            user_datetime = datetime.datetime.strptime(message.text, "%d.%m.%Y")
+            begin_datetime = datetime.datetime.strptime(date_begin, "%d.%m.%Y")
+            if user_datetime < begin_datetime:
+                client.send_message(message.chat.id, 'Невозможная дата. Попробуйте еще раз.')
+                client.register_next_step_handler(message, search_date_step3, date_begin)
+            else:
+                show_events_filter_date(message, date_begin, message.text)
+        except ValueError:
+            client.send_message(message.chat.id, 'Некорректный ввод. Попробуйте ещё раз.')
+            client.register_next_step_handler(message, search_date_step3, date_begin)
+    else:
+        client.send_message(message.chat.id, 'Некорректный ввод. Попробуйте ещё раз.')
+        client.register_next_step_handler(message, search_date_step3, date_begin)
+
+
+def show_events_filter_date(message: types.Message, date_begin, date_end):
+    markup_inline = types.InlineKeyboardMarkup()
+    events = get_events_filter_date_from_database(date_begin, date_end)
+    number = 0
+    for event in events:
+        number += 1
+        if 1 <= number <= 5:
+            button = types.InlineKeyboardButton(
+                text=event.event_name + '\n' + event.event_date + ' ' + event.event_time,
+                callback_data='show_event|' + str(event.event_id))
+            markup_inline.add(button)
+        elif number > 5:
+            break
+    
+    if 0 != (len(events) - 1) // 5 and number != 0:
+        button = types.InlineKeyboardButton(text='>', callback_data='next_page_5|' + date_begin + '|' + date_end + '|0')
+        markup_inline.add(button)
+    elif number == 0:
+        client.send_message(message.chat.id, 'Мероприятий, проходящих в данные даты, нет.')
+        return
+    client.send_message(message.chat.id, 'Мероприятия, проходящие в данные даты:', reply_markup=markup_inline)
+
+
+def show_events_filter_date_next(message: types.Message, date_begin, date_end, page):
+    markup_inline = types.InlineKeyboardMarkup()
+    events = get_events_filter_date_from_database(date_begin, date_end)
+    number = 0
+    for event in events:
+        number += 1
+        if 1 + page * 5 <= number <= page * 5 + 5:
+            button = types.InlineKeyboardButton(
+                text=event.event_name + '\n' + event.event_date + ' ' + event.event_time,
+                callback_data='show_event|' + str(event.event_id))
+            markup_inline.add(button)
+        elif number > page * 5 + 5:
+            break
+    if page != 0 and page != (len(events) - 1) // 5:
+        button1 = types.InlineKeyboardButton(text='<', callback_data='prev_page_5|' + date_begin + '|' + date_end + '|' + str(page))
+        button2 = types.InlineKeyboardButton(text='>', callback_data='next_page_5|' + date_begin + '|' + date_end + '|' + str(page))
+        markup_inline.add(button1, button2, row_width=2)
+    elif page != 0:
+        button = types.InlineKeyboardButton(text='<', callback_data='prev_page_5|' + date_begin + '|' + date_end + '|' + str(page))
+        markup_inline.add(button)
+    elif page != (len(events) - 1) // 5 and number != 0:
+        button = types.InlineKeyboardButton(text='>', callback_data='next_page_5|' + date_begin + '|' + date_end + '|' + str(page))
+        markup_inline.add(button)
+    elif number == 0:
+        client.send_message(message.chat.id, 'Мероприятий, проходящих в данные даты, нет.')
+        return
+    client.edit_message_reply_markup(chat_id=message.chat.id, message_id=message.id, reply_markup=markup_inline)
+
 
 def search_theme(message: types.Message):
-    pass
+    markup_inline = types.InlineKeyboardMarkup()
+    button_1 = types.InlineKeyboardButton(text='Выставка', callback_data='search_theme_st2|Выставка|')
+    button_2 = types.InlineKeyboardButton(text='Концерт', callback_data='search_theme_st2|Концерт|')
+    button_3 = types.InlineKeyboardButton(text='Спектакль', callback_data='search_theme_st2|Спектакль|')
+    button_4 = types.InlineKeyboardButton(text='Обучение', callback_data='search_theme_st2|Обучение|')
+    button_5 = types.InlineKeyboardButton(text='Встреча', callback_data='search_theme_st2|Встреча|')
+    button_6 = types.InlineKeyboardButton(text='Экскурсия', callback_data='search_theme_st2|Экскурсия|')
+    button_7 = types.InlineKeyboardButton(text='Праздник', callback_data='search_theme_st2|Праздник|')
+    button_8 = types.InlineKeyboardButton(text='Другое', callback_data='search_theme_st2|Другое|')
+    button_9 = types.InlineKeyboardButton(text='Без категории', callback_data='search_theme_st2|Без категории|')
+    markup_inline.add(button_1, button_2, button_3, button_4, button_5, button_6, button_7, button_8, button_9,
+                      row_width=2)
+    client.send_message(message.chat.id, 'Выберите тематику:', reply_markup=markup_inline)
+
+
+def show_events_filter_theme(message: types.Message, theme):
+    markup_inline = types.InlineKeyboardMarkup()
+    events = get_events_filter_theme_from_database(theme)
+    number = 0
+    for event in events:
+        number += 1
+        if 1 <= number <= 5:
+            button = types.InlineKeyboardButton(
+                text=event.event_name + '\n' + event.event_date + ' ' + event.event_time,
+                callback_data='show_event|' + str(event.event_id))
+            markup_inline.add(button)
+        elif number > 5:
+            break
+    
+    if 0 != (len(events) - 1) // 5 and number != 0:
+        button = types.InlineKeyboardButton(text='>', callback_data='next_page_6|' + theme + '|0')
+        markup_inline.add(button)
+    elif number == 0:
+        client.send_message(message.chat.id, 'Мероприятий данной тематики нет.')
+        return
+    client.send_message(message.chat.id, 'Мероприятия данной тематики:', reply_markup=markup_inline)
+
+
+def show_events_filter_theme_next(message: types.Message, theme, page):
+    markup_inline = types.InlineKeyboardMarkup()
+    events = get_events_filter_theme_from_database(theme)
+    number = 0
+    for event in events:
+        number += 1
+        if 1 + page * 5 <= number <= page * 5 + 5:
+            button = types.InlineKeyboardButton(
+                text=event.event_name + '\n' + event.event_date + ' ' + event.event_time,
+                callback_data='show_event|' + str(event.event_id))
+            markup_inline.add(button)
+        elif number > page * 5 + 5:
+            break
+    if page != 0 and page != (len(events) - 1) // 5:
+        button1 = types.InlineKeyboardButton(text='<', callback_data='prev_page_6|' + theme + '|' + str(page))
+        button2 = types.InlineKeyboardButton(text='>', callback_data='next_page_6|' + theme + '|' + str(page))
+        markup_inline.add(button1, button2, row_width=2)
+    elif page != 0:
+        button = types.InlineKeyboardButton(text='<', callback_data='prev_page_6|' + theme + '|' + str(page))
+        markup_inline.add(button)
+    elif page != (len(events) - 1) // 5 and number != 0:
+        button = types.InlineKeyboardButton(text='>', callback_data='next_page_6|' + theme + '|' + str(page))
+        markup_inline.add(button)
+    elif number == 0:
+        client.send_message(message.chat.id, 'Мероприятий данной тематики нет.')
+        return
+    client.edit_message_reply_markup(chat_id=message.chat.id, message_id=message.id, reply_markup=markup_inline)
 
 
 def search_pay(message: types.Message):
-    pass
+    client.send_message(message.chat.id, 'Введите минимальную стоимость:')
+    client.register_next_step_handler(message, search_pay_step2)
+
+def search_pay_step2(message: types.Message):
+    if message.text is not None and isCorrectDigit(message.text):
+        client.send_message(message.chat.id, 'Введите максимальную стоимость:')
+        client.register_next_step_handler(message, search_pay_step3, message.text)
+    else:
+        client.send_message(message.chat.id, 'Некорректный ввод. Попробуйте ещё раз.')
+        client.register_next_step_handler(message, search_pay_step2)
+
+
+def search_pay_step3(message: types.Message, min_pay):
+    if message.text is not None and isCorrectDigit(message.text):
+        if int(message.text) >= int(min_pay):
+            show_events_filter_pay(message, min_pay, message.text)
+        else:
+            client.send_message(message.chat.id, 'Максимальная сумма не может быть меньше минимальной. Попробуйте ещё раз.')
+            client.register_next_step_handler(message, search_pay_step3, min_pay)
+    else:
+        client.send_message(message.chat.id, 'Некорректный ввод. Попробуйте ещё раз.')
+        client.register_next_step_handler(message, search_pay_step3, min_pay)
+
+
+def show_events_filter_pay(message: types.Message, min_pay, max_pay):
+    markup_inline = types.InlineKeyboardMarkup()
+    events = get_events_filter_pay_from_database(min_pay, max_pay)
+    number = 0
+    for event in events:
+        number += 1
+        if 1 <= number <= 5:
+            button = types.InlineKeyboardButton(
+                text=event.event_name + '\n' + event.event_date + ' ' + event.event_time,
+                callback_data='show_event|' + str(event.event_id))
+            markup_inline.add(button)
+        elif number > 5:
+            break
+    
+    if 0 != (len(events) - 1) // 5 and number != 0:
+        button = types.InlineKeyboardButton(text='>', callback_data='next_page_7|' + min_pay + '|' + max_pay + '|0')
+        markup_inline.add(button)
+    elif number == 0:
+        client.send_message(message.chat.id, 'Мероприятий в данном диапазоне стоимости нет.')
+        return
+    client.send_message(message.chat.id, 'Мероприятия в данном диапазоне стоимости:', reply_markup=markup_inline)
+
+
+def show_events_filter_pay_next(message: types.Message, min_pay, max_pay, page):
+    markup_inline = types.InlineKeyboardMarkup()
+    events = get_events_filter_pay_from_database(min_pay, max_pay)
+    number = 0
+    for event in events:
+        number += 1
+        if 1 + page * 5 <= number <= page * 5 + 5:
+            button = types.InlineKeyboardButton(
+                text=event.event_name + '\n' + event.event_date + ' ' + event.event_time,
+                callback_data='show_event|' + str(event.event_id))
+            markup_inline.add(button)
+        elif number > page * 5 + 5:
+            break
+    if page != 0 and page != (len(events) - 1) // 5:
+        button1 = types.InlineKeyboardButton(text='<', callback_data='prev_page_7|' + min_pay + '|' + max_pay + '|' + str(page))
+        button2 = types.InlineKeyboardButton(text='>', callback_data='next_page_7|' + min_pay + '|' + max_pay + '|' + str(page))
+        markup_inline.add(button1, button2, row_width=2)
+    elif page != 0:
+        button = types.InlineKeyboardButton(text='<', callback_data='prev_page_7|' + min_pay + '|' + max_pay + '|' + str(page))
+        markup_inline.add(button)
+    elif page != (len(events) - 1) // 5 and number != 0:
+        button = types.InlineKeyboardButton(text='>', callback_data='next_page_7|' + min_pay + '|' + max_pay + '|' + str(page))
+        markup_inline.add(button)
+    elif number == 0:
+        client.send_message(message.chat.id, 'Мероприятий в данном диапазоне стоимости нет.')
+        return
+    client.edit_message_reply_markup(chat_id=message.chat.id, message_id=message.id, reply_markup=markup_inline)
 
 
 # Обработка нажатий на кнопки
@@ -929,7 +1247,48 @@ def answer(call):
         search_theme(call.message)
     elif func == 'search_pay':
         search_pay(call.message)
-    
+    elif func == 'next_page_4':
+        place = int(call.data.split('|')[1])
+        page = int(call.data.split('|')[2])
+        show_events_filter_location_next(call.message, place, page + 1)
+    elif func == 'prev_page_4':
+        place = int(call.data.split('|')[1])
+        page = int(call.data.split('|')[2])
+        show_events_filter_location_next(call.message, place, page - 1)
+    elif func == 'next_page_5':
+        date_begin = int(call.data.split('|')[1])
+        date_end = int(call.data.split('|')[2])
+        page = int(call.data.split('|')[3])
+        show_events_filter_date_next(call.message, date_begin, date_end, page + 1)
+    elif func == 'prev_page_5':
+        date_begin = int(call.data.split('|')[1])
+        date_end = int(call.data.split('|')[2])
+        page = int(call.data.split('|')[3])
+        show_events_filter_date_next(call.message, date_begin, date_end, page - 1)
+    elif func == 'search_theme_st2':
+        client.edit_message_reply_markup(chat_id=call.message.chat.id, message_id=call.message.id,
+                                         inline_message_id=None)
+        theme = call.data.split('|')[1]
+        show_events_filter_theme(call.message, theme)
+    elif func == 'next_page_6':
+        theme = int(call.data.split('|')[1])
+        page = int(call.data.split('|')[2])
+        show_events_filter_theme_next(call.message, theme, page + 1)
+    elif func == 'prev_page_6':
+        theme = int(call.data.split('|')[1])
+        page = int(call.data.split('|')[2])
+        show_events_filter_theme_next(call.message, theme, page - 1)
+    elif func == 'next_page_7':
+        min_pay = int(call.data.split('|')[1])
+        max_pay = int(call.data.split('|')[2])
+        page = int(call.data.split('|')[3])
+        show_events_filter_date_next(call.message, min_pay, max_pay, page + 1)
+    elif func == 'prev_page_7':
+        min_pay = int(call.data.split('|')[1])
+        max_pay = int(call.data.split('|')[2])
+        page = int(call.data.split('|')[3])
+        show_events_filter_pay_next(call.message, min_pay, max_pay, page - 1)
+
 
 def unknown(message: types.Message):
     client.send_message(message.chat.id, 'Я вас не понимаю. Введите другой запрос.')
