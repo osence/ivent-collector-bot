@@ -120,7 +120,7 @@ def edit_user_in_database(name, birthday, user_id):
 
 def get_events_from_database():
     cursor = conn.cursor()
-    sql = "SELECT * from events_t"
+    sql = "SELECT * from events_t ORDER BY events_t.event_date, events_t.event_time"
     try:
         cursor.execute(sql)
         data=cursor.fetchall()
@@ -220,9 +220,11 @@ def delete_registration_from_database(user_id, event_id):
 
 def get_events_in_user_plans_from_database(user_id):
     cursor = conn.cursor()
-    sql = "SELECT * FROM events_t JOIN participations ON\
+    sql = ("SELECT * FROM events_t JOIN participations ON\
     (events_t.event_id = participations.event_id)\
     where participations.users_id = "+str(user_id)
+    +" ORDER BY events_t.event_date, events_t.event_time"
+    )
     try:
         cursor.execute(sql)
     except:
@@ -241,7 +243,9 @@ def get_events_in_user_plans_from_database(user_id):
 
 def get_events_of_user_from_database(user_id):
     cursor = conn.cursor()
-    sql = "SELECT * FROM events_t where events_t.user_who_creat = "+str(user_id)
+    sql = ("SELECT * FROM events_t where events_t.user_who_creat = "
+           +str(user_id)
+           +" ORDER BY events_t.event_date, events_t.event_time")
     try:
         cursor.execute(sql)
         data=cursor.fetchall()
@@ -260,7 +264,10 @@ def get_events_of_user_from_database(user_id):
 
 def get_events_filter_location_from_database(latitude, longitude):
     cursor =conn.cursor()
-    sql = "SELECT * FROM Events_t where Events_t.event_place LIKE '" + str(round(float(latitude),3)) + "%|" + str(round(float(longitude),3)) + "%'"
+    sql = ("SELECT * FROM Events_t where Events_t.event_place LIKE '"
+           + str(round(float(latitude),3)) + "%|"
+           + str(round(float(longitude),3)) + "%'"
+           +" ORDER BY events_t.event_date, events_t.event_time")
     try:
         cursor.execute(sql)
     except:
@@ -281,7 +288,9 @@ def get_events_filter_location_from_database(latitude, longitude):
 
 def get_events_filter_date_from_database(date_begin, date_end):
     cursor =conn.cursor()
-    sql = "SELECT * FROM Events_t where (Events_t.event_date >= %s) and (Events_t.event_date <= %s)"
+    sql = ("SELECT * FROM Events_t where (Events_t.event_date >= %s)\
+    and (Events_t.event_date <= %s)"
+    +" ORDER BY events_t.event_date, events_t.event_time")
     full_beg=str(date_begin).split('.')
     full_end=str(date_end).split('.')
     den_beg=full_beg[2]+'-'+full_beg[1]+'-'+full_beg[0]
@@ -308,7 +317,9 @@ def get_events_filter_date_from_database(date_begin, date_end):
 
 def get_events_filter_theme_from_database(theme):
     cursor =conn.cursor()
-    sql = "SELECT * FROM events_t where events_t.event_subject ='"+theme+"'"
+    sql = ("SELECT * FROM events_t where events_t.event_subject ='"
+           +theme+"'"
+           +" ORDER BY events_t.event_date, events_t.event_time")
     try:
         cursor.execute(sql)       
     except:
@@ -327,7 +338,9 @@ def get_events_filter_theme_from_database(theme):
 
 def get_events_filter_pay_from_database(min_pay, max_pay):
     cursor =conn.cursor()
-    sql =  "SELECT * FROM Events_t where (Events_t.event_pay >= %s) and (Events_t.event_pay <= %s)"
+    sql =  ("SELECT * FROM Events_t where (Events_t.event_pay >= %s) \
+    and (Events_t.event_pay <= %s)"
+    +" ORDER BY events_t.event_date, events_t.event_time")
     val = (min_pay, max_pay)
     try:
         cursor.execute(sql,val)       
