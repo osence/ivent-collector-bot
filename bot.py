@@ -30,12 +30,12 @@ def is_correct_digit(text):
 def welcome_message(message):
     keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
     flag_is_registered = bd.id_in_database(message.chat.id)
-    if flag_is_registered == False:
+    if flag_is_registered is False:
         keyboard.add(*["Регистрация"])
         client.send_message(message.chat.id,
                             'Чтобы начать работать с ботом, вам необходимо зарегистрироваться.',
                             reply_markup=keyboard)
-    elif flag_is_registered == True:
+    elif flag_is_registered is True:
         keyboard.add(*["Создать мероприятие", "Посмотреть мероприятия"])
         keyboard.add(*["Мои события", "Мои планы"])
         keyboard.add(*["Поиск по событиям", "Мой аккаунт"])
@@ -50,9 +50,9 @@ def choose_handler(message: types.Message):
     if flag_is_registered not in [True, False]:
         client.send_message(message.chat.id, flag_is_registered)
 
-    if message.text == "Регистрация" and flag_is_registered == False:
+    if message.text == "Регистрация" and flag_is_registered is False:
         registration(message)
-    elif flag_is_registered == False:
+    elif flag_is_registered is False:
         welcome_message(message)
     elif message.text == "Посмотреть мероприятия":
         show_events(message)
@@ -108,7 +108,7 @@ def registration_step3(message: types.Message, name):
                 client.send_message(message.chat.id,
                                     'Невозможная дата. Попробуйте еще раз.')
                 client.register_next_step_handler(message, registration_step3, name)
-            else:                
+            else:
                 if bd.add_user_in_database(name, message.text, message.chat.id):
                     client.send_message(message.chat.id,
                                     'Вы успешно зарегистрированы.')
@@ -132,9 +132,16 @@ def info_account(message: types.Message):
                                                   callback_data='edit_info|')
     markup_inline.add(button_edit_info)
     user_info = bd.get_user_info_from_database(message.chat.id)
-    client.send_message(message.chat.id,
-                        'Имя: ' + user_info[0] + '\nДата рождения: ' + user_info[1],
-                        reply_markup=markup_inline)
+    if user_info not in (False, None):
+        client.send_message(message.chat.id,
+                            'Имя: ' + user_info[0] + '\nДата рождения: ' + user_info[1],
+                            reply_markup=markup_inline)
+    elif user_info is None:
+        client.send_message(message.chat.id,
+                            'Пользователя не существует.')
+    else:
+        client.send_message(message.chat.id,
+                            'Не удалось выполнить запрос.')
 
 
 def edit_info(message: types.Message):
@@ -176,9 +183,12 @@ def edit_info_step3(message: types.Message, name):
                                     'Невозможная дата. Попробуйте еще раз.')
                 client.register_next_step_handler(message, edit_info_step3, name)
             else:
-                client.send_message(message.chat.id,
+                if bd.edit_user_in_database(name, message.text, message.chat.id):
+                    client.send_message(message.chat.id,
                                     'Данные успешно изменены')
-                bd.edit_user_in_database(name, message.text, message.chat.id)
+                else:
+                    client.send_message(message.chat.id,
+                                    'Не удалось выполнить запрос.')
         except ValueError:
             client.send_message(message.chat.id,
                                 'Некорректный ввод. Попробуйте ещё раз.')
@@ -229,7 +239,8 @@ def create_event_step3(message: types.Message, theme):
                                                   theme, message.text)
             else:
                 client.send_message(message.chat.id,
-                                    'В названии мероприятия должно быть хотя бы одно слово. Попробуйте ещё раз.')
+                                    'В названии мероприятия должно быть хотя бы одно слово. \
+                                    Попробуйте ещё раз.')
                 client.register_next_step_handler(message, create_event_step3, theme)
         else:
             client.send_message(message.chat.id, 'Слишком длинная строка. Попробуйте ещё раз.')
@@ -249,7 +260,8 @@ def create_event_step4(message: types.Message, theme, name):
                                                   theme, name, message.text)
             else:
                 client.send_message(message.chat.id,
-                                    'В описании мероприятия должно быть хотя бы одно слово. Попробуйте ещё раз.')
+                                    'В описании мероприятия должно быть хотя бы одно слово. \
+                                    Попробуйте ещё раз.')
                 client.register_next_step_handler(message, create_event_step4, theme, name)
         else:
             client.send_message(message.chat.id, 'Слишком длинная строка. Попробуйте ещё раз.')
@@ -362,10 +374,13 @@ def create_event_step8(message: types.Message, theme, name, description, date, t
 
 def create_event_step9(message: types.Message, theme, name, description, date, time, place, pay):
     if message.text is not None and is_correct_digit(message.text):
-        client.send_message(message.chat.id,
-                            'Ваше мероприятие успешно добавлено.')
-        bd.add_event_in_database(name, description, date, time,
-                                 place, theme, pay, message.text, message.chat.id)
+        if bd.add_event_in_database(name, description, date, time,
+                                 place, theme, pay, message.text, message.chat.id):
+            client.send_message(message.chat.id,
+                                'Ваше мероприятие успешно добавлено.')
+        else:
+            client.send_message(message.chat.id,
+                                'Не удалось выполнить запрос.')
     else:
         client.send_message(message.chat.id,
                             'Некорректный ввод. Попробуйте ещё раз.')
@@ -376,6 +391,10 @@ def create_event_step9(message: types.Message, theme, name, description, date, t
 def show_events(message: types.Message):
     markup_inline = types.InlineKeyboardMarkup()
     events = bd.get_events_from_database()
+    if events is False:
+        client.send_message(message.chat.id,
+                                'Не удалось выполнить запрос.')
+        return
     number = 0
     for event in events:
         number += 1
@@ -402,6 +421,10 @@ def show_events(message: types.Message):
 def show_events_next(message: types.Message, page):
     markup_inline = types.InlineKeyboardMarkup()
     events = bd.get_events_from_database()
+    if events is False:
+        client.send_message(message.chat.id,
+                                'Не удалось выполнить запрос.')
+        return
     number = 0
     for event in events:
         number += 1
@@ -436,6 +459,10 @@ def show_events_next(message: types.Message, page):
 
 def show_event(message: types.Message, event_id):
     event_info = bd.get_event_info_from_database(event_id)
+    if event_info is False:
+        client.send_message(message.chat.id,
+                            "Не удалось выполнить запрос.")
+        return
     if event_info is not None:
         seats = ''
         if event_info.event_number_of_seats == str(0):
@@ -461,17 +488,21 @@ def show_event(message: types.Message, event_id):
                                                  callback_data='delete_event|' + str(event_id))
             markup_inline.add(button2, button3)
         else:
-            if bd.user_is_registered(message.chat.id, event_id):
+            flag_is_registered = bd.user_is_registered(message.chat.id, event_id)
+            if flag_is_registered is True:
                 button2 = types.InlineKeyboardButton(text='Отменить регистрацию',
                                                      callback_data='cansel_reg|' + str(event_id))
                 markup_inline.add(button2)
-            else:
+            elif flag_is_registered is False:
                 button2 = types.InlineKeyboardButton(text='Зарегистрироваться',
                                                      callback_data='register|' + str(event_id))
                 markup_inline.add(button2)
+            else:
+                client.send_message(message.chat.id, flag_is_registered)
         client.send_message(message.chat.id, text, reply_markup=markup_inline)
     else:
-        client.send_message(message.chat.id, "Мероприятия не существует")
+        client.send_message(message.chat.id,
+                            "Мероприятия не существует")
 
 
 def edit_event(message: types.Message, event_id):
@@ -516,7 +547,8 @@ def edit_event_step3(message: types.Message, event_id, theme):
                                                   event_id, theme, message.text)
             else:
                 client.send_message(message.chat.id,
-                                    'В названии мероприятия должно быть хотя бы одно слово. Попробуйте ещё раз.')
+                                    'В названии мероприятия должно быть хотя бы одно слово. '
+                                    + 'Попробуйте ещё раз.')
                 client.register_next_step_handler(message, edit_event_step3, event_id, theme)
         else:
             client.send_message(message.chat.id,
@@ -538,7 +570,8 @@ def edit_event_step4(message: types.Message, event_id, theme, name):
                                                   event_id, theme, name, message.text)
             else:
                 client.send_message(message.chat.id,
-                                    'В описании мероприятия должно быть хотя бы одно слово. Попробуйте ещё раз.')
+                                    'В описании мероприятия должно быть хотя бы одно слово. '
+                                    + 'Попробуйте ещё раз.')
                 client.register_next_step_handler(message, edit_event_step4,
                                                   event_id, theme, name)
         else:
@@ -595,7 +628,8 @@ def edit_event_step6(message: types.Message, event_id, theme, name, description,
             client.send_message(message.chat.id,
                                 'Введите место проведения или прикрепите геолокацию:')
             client.register_next_step_handler(message, edit_event_step7,
-                                              event_id, theme, name, description, date, message.text)
+                                              event_id, theme, name,
+                                              description, date, message.text)
     else:
         client.send_message(message.chat.id,
                             'Некорректный ввод. Попробуйте ещё раз.')
@@ -643,7 +677,8 @@ def edit_event_step8(message: types.Message, event_id, theme, name, description,
         client.send_message(message.chat.id,
                             'Введите количество мест (0 - не ограничено):')
         client.register_next_step_handler(message, edit_event_step9,
-                                          event_id, theme, name, description, date, time, place, message.text)
+                                          event_id, theme, name, description,
+                                          date, time, place, message.text)
     else:
         client.send_message(message.chat.id,
                             'Некорректный ввод. Попробуйте ещё раз.')
@@ -651,29 +686,40 @@ def edit_event_step8(message: types.Message, event_id, theme, name, description,
                                           event_id, theme, name, description, date, time, place)
 
 
-def edit_event_step9(message: types.Message, event_id, theme, name, description, date, time, place, pay):
+def edit_event_step9(message: types.Message, event_id, theme,
+                     name, description, date, time, place, pay):
     if message.text is not None and is_correct_digit(message.text):
         client.send_message(message.chat.id,
-                            'Вы действительно хотите редактировать ваше мероприятие? Введите "Да" или "Нет".')
+                            'Вы действительно хотите редактировать ваше мероприятие? \
+                            Введите "Да" или "Нет".')
         client.register_next_step_handler(message, edit_event_step10,
-                                          event_id, theme, name, description, date, time, place, pay, message.text)
+                                          event_id, theme, name, description,
+                                          date, time, place, pay, message.text)
     else:
         client.send_message(message.chat.id,
                             'Некорректный ввод. Попробуйте ещё раз.')
         client.register_next_step_handler(message, edit_event_step9,
-                                          event_id, theme, name, description, date, time, place, pay)
+                                          event_id, theme, name, description,
+                                          date, time, place, pay)
 
 
-def edit_event_step10(message: types.Message, event_id, theme, name, description, date, time, place, pay, seats):
+def edit_event_step10(message: types.Message, event_id, theme, name,
+                      description, date, time, place, pay, seats):
     if message.text is not None:
         if message.text.lower() == "да":
-            bd.edit_event_info_in_database(event_id, name, description, date,
-                                           time, place, theme, pay, seats, message.chat.id)
+            if bd.edit_event_info_in_database(event_id, name, description, date,
+                                           time, place, theme, pay, seats, message.chat.id):
+                client.send_message(message.chat.id,
+                                    'Данные успешно изменены')
+            else:
+                client.send_message(message.chat.id,
+                                'Не удалось выполнить запрос.')
         elif message.text.lower() != "нет":
             client.send_message(message.chat.id,
                                 'Некорректный ввод. Попробуйте ещё раз.')
             client.register_next_step_handler(message, edit_event_step10,
-                                              event_id, theme, name, description, date, time, place, pay, seats)
+                                              event_id, theme, name, description,
+                                              date, time, place, pay, seats)
     else:
         client.send_message(message.chat.id,
                             'Некорректный ввод. Попробуйте ещё раз.')
@@ -683,7 +729,8 @@ def edit_event_step10(message: types.Message, event_id, theme, name, description
 
 def delete_event(message: types.Message, event_id):
     client.send_message(message.chat.id,
-                        'Вы действительно хотите удалить мероприятие? Введите "Да" или "Нет".')
+                        'Вы действительно хотите удалить мероприятие? '
+                        + 'Введите "Да" или "Нет".')
     client.register_next_step_handler(message, delete_event_step2, event_id)
 
 
@@ -691,12 +738,30 @@ def delete_event_step2(message: types.Message, event_id):
     if message.text is not None:
         if message.text.lower() == "да":
             event = bd.get_event_info_from_database(event_id)
+            if event is False:
+                client.send_message(message.chat.id,
+                                'Не удалось выполнить запрос.')
+                return
+            if event is None:
+                client.send_message(message.chat.id,
+                                'Мероприятие не существует.')
+                return
             text = ('Мероприятие "' + event.event_name
-                    + '", на которое вы были зарегистрированы, было удалено из списка мероприятий его создателем.')
+                    + '", на которое вы были зарегистрированы, '
+                    + 'удалено из списка мероприятий его создателем.')
             list_users = bd.get_user_who_registered(event_id)
+            if list_users is False:
+                client.send_message(message.chat.id,
+                                'Не удалось выполнить запрос.')
+                return
             for user in list_users:
                 client.send_message(user, text)
-            bd.delete_event_from_database(event_id)
+            if bd.delete_event_from_database(event_id):
+                client.send_message(message.chat.id,
+                                'Мероприятие успешно удалено.')
+            else:
+                client.send_message(message.chat.id,
+                                'Не удалось выполнить запрос.')
         elif message.text.lower() != "нет":
             client.send_message(message.chat.id,
                                 'Некорректный ввод. Попробуйте ещё раз.')
@@ -720,7 +785,12 @@ def register_on_event(message: types.Message, event_id):
 def register_on_event_step2(message: types.Message, event_id):
     if message.text is not None:
         if message.text.lower() == "да":
-            bd.add_registration_in_database(message.chat.id, event_id)
+            if bd.add_registration_in_database(message.chat.id, event_id):
+                client.send_message(message.chat.id,
+                            'Вы успешно зарегистрированы.')
+            else:
+                client.send_message(message.chat.id,
+                            'Не удалось выполнить запрос.')
         elif message.text.lower() != "нет":
             client.send_message(message.chat.id,
                                 'Некорректный ввод. Попробуйте ещё раз.')
@@ -740,7 +810,12 @@ def cansel_registration(message: types.Message, event_id):
 def cansel_registration_step2(message: types.Message, event_id):
     if message.text is not None:
         if message.text.lower() == "да":
-            bd.delete_registration_from_database(message.chat.id, event_id)
+            if bd.delete_registration_from_database(message.chat.id, event_id):
+                client.send_message(message.chat.id,
+                            'Регистрация успешно отменена.')
+            else:
+                client.send_message(message.chat.id,
+                            'Не удалось выполнить запрос.')
         elif message.text.lower() != "нет":
             client.send_message(message.chat.id,
                                 'Некорректный ввод. Попробуйте ещё раз.')
@@ -754,6 +829,10 @@ def cansel_registration_step2(message: types.Message, event_id):
 def events_in_user_plans(message: types.Message):
     markup_inline = types.InlineKeyboardMarkup()
     events = bd.get_events_in_user_plans_from_database(message.chat.id)
+    if events is False:
+        client.send_message(message.chat.id,
+                                'Не удалось выполнить запрос.')
+        return
     number = 0
     for event in events:
         number += 1
@@ -780,6 +859,10 @@ def events_in_user_plans(message: types.Message):
 def events_in_user_plans_next(message: types.Message, page):
     markup_inline = types.InlineKeyboardMarkup()
     events = bd.get_events_in_user_plans_from_database(message.chat.id)
+    if events is False:
+        client.send_message(message.chat.id,
+                                'Не удалось выполнить запрос.')
+        return
     number = 0
     for event in events:
         number += 1
@@ -816,6 +899,10 @@ def events_in_user_plans_next(message: types.Message, page):
 def events_of_user(message: types.Message):
     markup_inline = types.InlineKeyboardMarkup()
     events = bd.get_events_of_user_from_database(message.chat.id)
+    if events is False:
+        client.send_message(message.chat.id,
+                                'Не удалось выполнить запрос.')
+        return
     number = 0
     for event in events:
         number += 1
@@ -843,6 +930,10 @@ def events_of_user(message: types.Message):
 def events_of_user_next(message: types.Message, page):
     markup_inline = types.InlineKeyboardMarkup()
     events = bd.get_events_of_user_from_database(message.chat.id)
+    if events is False:
+        client.send_message(message.chat.id,
+                                'Не удалось выполнить запрос.')
+        return
     number = 0
     for event in events:
         number += 1
@@ -932,6 +1023,10 @@ def show_events_filter_location(message: types.Message, place):
     markup_inline = types.InlineKeyboardMarkup()
     events = bd.get_events_filter_location_from_database(place.split('|')[0],
                                                          place.split('|')[1])
+    if events is False:
+        client.send_message(message.chat.id,
+                                'Не удалось выполнить запрос.')
+        return
     number = 0
     for event in events:
         number += 1
@@ -960,6 +1055,10 @@ def show_events_filter_location_next(message: types.Message, place, page):
     markup_inline = types.InlineKeyboardMarkup()
     events = bd.get_events_filter_location_from_database(place.split('|')[0],
                                                          place.split('|')[1])
+    if events is False:
+        client.send_message(message.chat.id,
+                                'Не удалось выполнить запрос.')
+        return
     number = 0
     for event in events:
         number += 1
@@ -1049,6 +1148,10 @@ def search_date_step3(message: types.Message, date_begin):
 def show_events_filter_date(message: types.Message, date_begin, date_end):
     markup_inline = types.InlineKeyboardMarkup()
     events = bd.get_events_filter_date_from_database(date_begin, date_end)
+    if events is False:
+        client.send_message(message.chat.id,
+                                'Не удалось выполнить запрос.')
+        return
     number = 0
     for event in events:
         number += 1
@@ -1077,6 +1180,10 @@ def show_events_filter_date(message: types.Message, date_begin, date_end):
 def show_events_filter_date_next(message: types.Message, date_begin, date_end, page):
     markup_inline = types.InlineKeyboardMarkup()
     events = bd.get_events_filter_date_from_database(date_begin, date_end)
+    if events is False:
+        client.send_message(message.chat.id,
+                                'Не удалось выполнить запрос.')
+        return
     number = 0
     for event in events:
         number += 1
@@ -1102,7 +1209,7 @@ def show_events_filter_date_next(message: types.Message, date_begin, date_end, p
         markup_inline.add(button)
     elif page != (len(events) - 1) // 5 and number != 0:
         button = types.InlineKeyboardButton(text='>',
-                                            callback_data='next_page_5|' 
+                                            callback_data='next_page_5|'
                                             + date_begin + '|' + date_end + '|' + str(page))
         markup_inline.add(button)
     elif number == 0:
@@ -1144,6 +1251,10 @@ def search_theme(message: types.Message):
 def show_events_filter_theme(message: types.Message, theme):
     markup_inline = types.InlineKeyboardMarkup()
     events = bd.get_events_filter_theme_from_database(theme)
+    if events is False:
+        client.send_message(message.chat.id,
+                                'Не удалось выполнить запрос.')
+        return
     number = 0
     for event in events:
         number += 1
@@ -1171,6 +1282,10 @@ def show_events_filter_theme(message: types.Message, theme):
 def show_events_filter_theme_next(message: types.Message, theme, page):
     markup_inline = types.InlineKeyboardMarkup()
     events = bd.get_events_filter_theme_from_database(theme)
+    if events is False:
+        client.send_message(message.chat.id,
+                                'Не удалось выполнить запрос.')
+        return
     number = 0
     for event in events:
         number += 1
@@ -1227,7 +1342,8 @@ def search_pay_step3(message: types.Message, min_pay):
             show_events_filter_pay(message, min_pay, message.text)
         else:
             client.send_message(message.chat.id,
-                                'Максимальная сумма не может быть меньше минимальной. Попробуйте ещё раз.')
+                                'Максимальная сумма не может быть меньше минимальной. '
+                                + 'Попробуйте ещё раз.')
             client.register_next_step_handler(message, search_pay_step3, min_pay)
     else:
         client.send_message(message.chat.id,
@@ -1238,6 +1354,10 @@ def search_pay_step3(message: types.Message, min_pay):
 def show_events_filter_pay(message: types.Message, min_pay, max_pay):
     markup_inline = types.InlineKeyboardMarkup()
     events = bd.get_events_filter_pay_from_database(min_pay, max_pay)
+    if events is False:
+        client.send_message(message.chat.id,
+                                'Не удалось выполнить запрос.')
+        return
     number = 0
     for event in events:
         number += 1
@@ -1259,13 +1379,17 @@ def show_events_filter_pay(message: types.Message, min_pay, max_pay):
                             'Мероприятий в данном диапазоне стоимости нет.')
         return
     client.send_message(message.chat.id,
-                        'Мероприятия в данном диапазоне стоимости:', 
+                        'Мероприятия в данном диапазоне стоимости:',
                         reply_markup=markup_inline)
 
 
 def show_events_filter_pay_next(message: types.Message, min_pay, max_pay, page):
     markup_inline = types.InlineKeyboardMarkup()
     events = bd.get_events_filter_pay_from_database(min_pay, max_pay)
+    if events is False:
+        client.send_message(message.chat.id,
+                                'Не удалось выполнить запрос.')
+        return
     number = 0
     for event in events:
         number += 1
