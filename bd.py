@@ -146,12 +146,14 @@ def get_user_info_from_database(user_id):
         conn.rollback()
         return False
 
-    data=cursor.fetchall()
+    data=cursor.fetchone()
+    if data is None:
+        return None
+
     user_list=[]
-    for row in data:
-        user_list.append(row[0])
-        full_data=str(row[1]).split('-')
-        user_list.append(full_data[2]+'.'+full_data[1]+'.'+full_data[0])
+    user_list.append(data[0])
+    full_data=str(data[1]).split('-')
+    user_list.append(full_data[2]+'.'+full_data[1]+'.'+full_data[0])
     return user_list
 
 
