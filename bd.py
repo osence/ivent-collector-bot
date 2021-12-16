@@ -163,8 +163,11 @@ def get_event_info_from_database(event_id):
         cursor.execute(sql)
     except:
         conn.rollback()
-        return None
+        return False
     data=cursor.fetchone()
+    if data is None:
+        return None
+
     full_data=str(data[3]).split('-')
     time=str(data[4]).split(':')
     den_bag=full_data[2]+'.'+full_data[1]+'.'+full_data[0]
