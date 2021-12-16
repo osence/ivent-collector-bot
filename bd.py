@@ -18,14 +18,14 @@ class Event:
 
 def add_event_in_database(name, description, date, time, place, theme, pay, seats, user_id):
     cursor = conn.cursor()
-    full_dat=str(date).split('.')
-    den_beg=full_dat[2]+'-'+full_dat[1]+'-'+full_dat[0]
+    date_elements=str(date).split('.')
+    date_right=date_elements[2]+'-'+date_elements[1]+'-'+date_elements[0]
     sql = "INSERT INTO Events_t(event_name, event_description, event_date,\
      event_time, event_place, event_subject,\
      event_pay, event_number_of_seats, user_who_creat)\
      VALUES (%s, %s, %s, %s, %s, %s , %s, %s, %s)"
 
-    val = (name, description, den_beg, time, place, theme, pay, seats, user_id)
+    val = (name, description, date_right, time, place, theme, pay, seats, user_id)
     try:
         cursor.execute(sql, val)
         conn.commit()
@@ -37,16 +37,17 @@ def add_event_in_database(name, description, date, time, place, theme, pay, seat
 
 def edit_event_info_in_database(event_id, name, description, date, time, place,
                                 theme, pay, seats, user_id):
-    # TODO Запрос на обновление данных о событии
     cursor = conn.cursor()
-    full_dat=str(date).split('.')
-    den_beg=full_dat[2]+'-'+full_dat[1]+'-'+full_dat[0]
-    sql = "UPDATE Events_t set Events_t.event_name = %s, Events_t.event_description = %s, Events_t.event_date = %s,\
-    Events_t.event_time = %s, Events_t.event_place = %s, Events_t.event_subject = %s,\
+    date_elements=str(date).split('.')
+    date_right=date_elements[2]+'-'+date_elements[1]+'-'+date_elements[0]
+    sql = "UPDATE Events_t set Events_t.event_name = %s,\
+    Events_t.event_description = %s, Events_t.event_date = %s,\
+    Events_t.event_time = %s, Events_t.event_place = %s, \
+    Events_t.event_subject = %s,\
     Events_t.event_pay = %s, Events_t.event_number_of_seats = %s, Events_t.user_who_creat = %s\
     where Events_t.event_id = %s"
-    val = name, description, den_beg, time, place, theme, pay, seats, user_id, event_id
 
+    val = name, description, date_right, time, place, theme, pay, seats, user_id, event_id
     try:
         cursor.execute(sql, val)
         conn.commit()
@@ -57,7 +58,6 @@ def edit_event_info_in_database(event_id, name, description, date, time, place,
 
 
 def delete_event_from_database(event_id):
-    # TODO Запрос на удаление мероприятия
     cursor = conn.cursor()
     sql = "DELETE FROM events_t WHERE events_t.event_id = "+str(event_id)
     try:
@@ -74,9 +74,8 @@ def id_in_database(user_id):
     sql = "SELECT count(*) FROM users where users.users_id =" +str(user_id)
     try:
         cursor.execute(sql)
-        data=cursor.fetchall()
-        for row in data:
-            check=row[0]
+        data=cursor.fetchone()
+        check=data[0]
         if check>0:
             return True
         else: 
